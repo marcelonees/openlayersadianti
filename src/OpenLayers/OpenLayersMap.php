@@ -197,7 +197,56 @@ class OpenLayersMap extends TElement
         TScript::create("
         var map = '';
             $(function() {  
-                 var map = L.map('".$this->id."').setView([".$this->lat.", ".$this->lng."], ".$this->z."); 
+                var map = L
+                    .map('".$this->id."')
+                    .setView([".$this->lat.", ".$this->lng."], ".$this->z.");
+
+                var OpenLayersIcon = L.Icon.extend({
+                    options: { iconSize: [25, 40], iconAnchor: [9, 40], popupAnchor: [4, -37] }
+                });
+
+                var Group".$this->id." = L.featureGroup().addTo(map).on('click', groupClick);
+
+                var Licon = new OpenLayersIcon({iconUrl: 'vendor/marcelonees/plugins/src/OpenLayers/marker-icon.png'});
+
+                ".$javascript."
+
+                function allPointsJson()
+                { 
+                    JsonGeom = '';
+                    map.eachLayer((layer) => {
+                        if(layer instanceof L.Marker){
+                            JsonGeom += JSON.stringify(layer.getLatLng())+', ';  
+                        }
+                    });
+                    $('[name=\"".$this->return."\"]').val('['+JsonGeom+']');
+                }
+
+                function groupClick(event) {
+                    event.layer.remove();
+                    allPointsJson();
+                }
+                
+                function message(title, message, type){
+                   if(type == 'success')
+                        iziToast.success({
+                            title: title,
+                            message: message,
+                            position: 'topRight',
+                            timeout: 3000
+                        });
+                }
+            });
+        ");
+    }
+
+    public function createMapLeaflet()
+    {
+        $javascript = (!empty($this->javascript)) ? $this->javascript : '';
+        TScript::create("
+        var map = '';
+            $(function() {  
+                var map = L.map('".$this->id."').setView([".$this->lat.", ".$this->lng."], ".$this->z."); 
                 var OpenLayersIcon = L.Icon.extend({
                     options: { iconSize: [25, 40], iconAnchor: [9, 40], popupAnchor: [4, -37] }
                 });  
@@ -229,8 +278,7 @@ class OpenLayersMap extends TElement
                 }
             });
         ");
-    }
-
+    }    
 
     public function show()
     {
