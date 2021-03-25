@@ -194,49 +194,40 @@ class OpenLayersMap extends TElement
     public function createMap()
     {
         $javascript = (!empty($this->javascript)) ? $this->javascript : '';
+
+        /*
+        <script type="text/javascript">
+        var map = new ol.Map({
+          target: 'map',
+          layers: [
+            new ol.layer.Tile({
+              source: new ol.source.OSM()
+            })
+          ],
+          view: new ol.View({
+            center: ol.proj.fromLonLat([37.41, 8.82]),
+            zoom: 4
+          })
+        });
+        </script>
+        */
+
+
         TScript::create("
-        var map = '';
-            $(function() {  
-                var map = L
-                    .map('".$this->id."')
-                    .setView([".$this->lat.", ".$this->lng."], ".$this->z.");
-
-                var OpenLayersIcon = L.Icon.extend({
-                    options: { iconSize: [25, 40], iconAnchor: [9, 40], popupAnchor: [4, -37] }
-                });
-
-                var Group".$this->id." = L.featureGroup().addTo(map).on('click', groupClick);
-
-                var Licon = new OpenLayersIcon({iconUrl: 'vendor/marcelonees/plugins/src/OpenLayers/marker-icon.png'});
-
-                ".$javascript."
-
-                function allPointsJson()
-                { 
-                    JsonGeom = '';
-                    map.eachLayer((layer) => {
-                        if(layer instanceof L.Marker){
-                            JsonGeom += JSON.stringify(layer.getLatLng())+', ';  
-                        }
+            var map = '';
+                $(function() {  
+                    var map = new ol.Map({
+                        target: '".$this->id."',
+                        layers: [
+                            new ol.layer.Tile({
+                                source: new ol.source.OSM()
+                            })
+                        ],
+                        view: new ol.View({
+                            center: ol.proj.fromLonLat([".$this->lat.", ".$this->lng."], ".$this->z."),
+                        })
                     });
-                    $('[name=\"".$this->return."\"]').val('['+JsonGeom+']');
-                }
-
-                function groupClick(event) {
-                    event.layer.remove();
-                    allPointsJson();
-                }
-                
-                function message(title, message, type){
-                   if(type == 'success')
-                        iziToast.success({
-                            title: title,
-                            message: message,
-                            position: 'topRight',
-                            timeout: 3000
-                        });
-                }
-            });
+                });
         ");
     }
 
