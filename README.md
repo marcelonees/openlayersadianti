@@ -3,7 +3,7 @@ Criar mapa utilizando o Open Layers através de classe em php, com localização
 
 Instalação:
 
-```
+```bash
 composer config repositories.openlayers vcs https://github.com/marcelonees/openlayersadianti
 composer require marcelonees/plugins @dev
 composer require marcelonees/plugins dev-main
@@ -11,7 +11,9 @@ composer require marcelonees/plugins dev-main
 
 Uso:
 
-```
+```php
+use MarceloNees\Plugins\OpenLayers\OpenLayersMap;
+
 $lat = "-16.5064867";
 $lng = "-39.0904928";
 $zoom = "10";
