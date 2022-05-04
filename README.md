@@ -4,7 +4,11 @@ Criar mapa utilizando o Open Layers através de classe em php, com localização
 Instalação:
 
 ```
-    composer config repositories.openlayers vcs https://github.com/marcelonees/openlayersadianti
-    composer require marcelonees/plugins @dev
-    composer require marcelonees/plugins dev-main
+composer config repositories.openlayers vcs https://github.com/marcelonees/openlayersadianti
+composer require marcelonees/plugins @dev
+composer require marcelonees/plugins dev-main
 ```
+
+# Este projeto está em estágio "embrionário".
+
+!!!!Não recomendado para produção!!!!
