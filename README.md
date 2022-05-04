@@ -11,7 +11,7 @@ composer require marcelonees/plugins dev-main
 
 Uso:
 
-``
+```
 $lat = "-16.5064867";
 $lng = "-39.0904928";
 $zoom = "10";
