@@ -9,6 +9,18 @@ composer require marcelonees/plugins @dev
 composer require marcelonees/plugins dev-main
 ```
 
+Uso:
+
+``
+$lat = "-16.5064867";
+$lng = "-39.0904928";
+$zoom = "10";
+
+$map = new OpenLayersMap($lat, $lng, $zoom, 'osm');
+$map->setSize('100%', '400');
+$map = $map->show();
+```
+
 # Este projeto está em estágio "embrionário".
 
-!!!!Não recomendado para produção!!!!
+## !!!!Não recomendado para produção!!!!
