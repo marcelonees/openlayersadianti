@@ -1,5 +1,6 @@
 # openlayersadianti
-Criar mapa utilizando o Open Layers através de classe em php, com localização atual (gps), adição de pontos, centralização de todos pontos na tela, etc.
+
+A intenção da criação deste componente é abstrair o JavaScript da biblioteca Open Layers para que o programador possa se dedicar à programação do seu sistema usando apenas o PHP e as funções do Framework Adianti.
 
 Instalação:
 
