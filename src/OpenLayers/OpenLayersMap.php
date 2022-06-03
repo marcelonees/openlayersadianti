@@ -5,111 +5,91 @@ use Adianti\Widget\Base\TElement;
 use Adianti\Widget\Base\TScript;
 use Adianti\Widget\Base\TStyle;
 use Exception;
-use GeoEngine;
-use GeoImoveis;
 
 /**
  * OpenLayersMap Container
  */
 class OpenLayersMap extends TElement
 {
-    protected $elements, $javascript;
+    protected $javascript;
 
+    /*
     private $height = '500px'; 
     private $width  = '500px';
-    private $return;
-    private $olmapjs = 'vendor/marcelonees/plugins/src/OpenLayers/olmap.js';
+    */
 
     // Jaraguá do Sul
-    //$lat = "-26.5064867";
-    //$lng = "-49.0904928";
-
-    private $lat = -49.0904928; 
-    private $lng = -26.5064867;
-    private $z   = 18;
-
-    private $locations_to_center = array();
-
+    private $lng = -49.0904928; 
+    private $lat = -26.504104;
+    private $z   = 15;
 
     /**
      * Class Constructor
      */
-    public function __construct($lat, $lng, $z, $tile = 'osm')
+    public function __construct($lat = -26.504104, $lng = -49.089554, $z = 15, $tile = 'osm')
     {
         try {
 
-            parent::__construct('div');
-
             if (!$this->id) {
-                //$this->id = 'openlayersmap';
-                $this->id = 'openlayersmap' . uniqid();
-                $this->elements = array();
 
-                if(!empty($lat))
+                parent::__construct('div');
+
+                TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.css');
+                TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.css');
+                
+                $this->id = 'openlayersmap' . uniqid();
+                
+                if (!empty($lat))
                     $this->lat = $lat;
 
-                if(!empty($lng))
+                if (!empty($lng))
                     $this->lng = $lng;
 
-                if(!empty($z))
+                if (!empty($z))
                     $this->z   = $z;
 
                 /*
                 if(!empty($tile))
                     $this->tileLayer($tile);
                 */
+                //echo "<pre>"; print_r("mapa criado: $this->id"); echo "</pre>";
 
-                //TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.css');
-                //TScript::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.js');
+                
+                // TScript::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.js');
+                // TScript::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/olmap.js');
+                // TScript::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js');
+                /*
 
-                $style = new TElement('style');
-                $style->add('#'.$this->id.'{ height:'.$this->height.';  width: '.$this->width.'; }');
-
-                //echo "<pre>"; print_r($this->height); echo "</pre>";
-                //echo "<pre>"; print_r($this->width);  echo "</pre>";
-                //$style->add('#'.$this->id.'{ height: 100px;  width: 100px; color: red; }');
-
-                $script          = new TElement('script');
-                $script->type    = 'text/javascript';
-                $script->src     = 'vendor/marcelonees/plugins/src/OpenLayers/ol.js';
-        
-                $this->createMap();
-        
                 $mapa_div        = new TElement('div');
                 $mapa_div->id    = $this->id;
                 $mapa_div->class = 'openlayers';
-                
-                parent::add( $style );
-                parent::add( $script );
                 parent::add( $mapa_div );
-            }
+        
+                if ( ($this->height) && ($this->width) ) {
+                    $style = new TElement('style');
+                    $style->add("#$this->id{
+                        height: $this->height;
+                        width:  $this->width;
+                    }");
+                    parent::add( $style );
+                }
 
+                $this->javascript = '';
+
+                $this->createMap();
+                */
+
+            }
         }
         catch (Exception $e)
         {
-            //new TMessage('error', $e->getMessage());
-            throw new Exception($e->getMessage());
+            new TMessage('error', $e->getMessage());
+            //throw new Exception($e->getMessage());
         }
 
     }
 
-    public function setWidth($width = '100px') {
-        $this->width = $width;
 
-        $style = new TElement('style');
-        $style->add('#'.$this->id.'{ height:'.$this->height.';  width: '.$this->width.'; }');       
-
-        parent::add($style);        
-    }
-
-    public function setHeight($height = '100px') {
-        $this->height = $height;
-
-        $style = new TElement('style');
-        $style->add('#'.$this->id.'{ height:'.$this->height.';  width: '.$this->width.'; }');       
-
-        parent::add($style);        
-    }
 
 
     /**
@@ -117,48 +97,195 @@ class OpenLayersMap extends TElement
      */
     public function createMap()
     {
+        try {
 
-        // Mapa
-        TScript::create("
+            $javascript = (!empty($this->javascript)) ? $this->javascript : '';
 
-            $(document).ready(function() {
-                
-                $.getScript('app/resources/geo/js/turf.min.js').done(function() {});
-                $.getScript('$this->olmapjs').done(function() {});
+            // Mapa
+            TScript::create("
 
-                lng = $this->lng;
-                lat = $this->lat;
-                z   = $this->z;
+                var map = '';
+                /*var map = undefined;*/
 
-                map = new ol.Map({
-                    target: $this->id,
-                    layers: [
-
-                        new ol.layer.Tile({
-                            source: new ol.source.OSM()
-                        })
-
-                    ],
-                    view: new ol.View({
-                        projection: 'EPSG:3857',
-                        center: ol.proj.fromLonLat(
-                            [ $this->lng, $this->lat ]
-                        ), 
-                        zoom: $this->z
-                    }),
-                    controls: ol.control.defaults().extend([
-                            new ol.control.ScaleLine(),
-                    ])
+                $(document).ready(function() {
                     
+                    
+
+                    $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol.js').done(function() {
+
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js').done(function() {});
+
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js').done(function() {});
+
+                        lng = $this->lng;
+                        lat = $this->lat;
+                        z   = $this->z;
+
+                        var sourceFeatures = new ol.source.Vector();
+
+                        var layerFeatures  = new ol.layer.Vector({
+                            source: sourceFeatures
+                        });
+
+                        var baseLayer = new ol.layer.Tile({
+                            source: new ol.source.OSM()
+                        });
+
+                        var PMJSLayer = new ol.layer.Tile({
+                            source: new ol.source.XYZ({
+                                attributions: '<br/><span>Prefeitura Municipal de Jaraguá do Sul, Março de 2020</span>',
+                                url: 'https://www.jaraguadosul.sc.gov.br/geo/ortomosaico2020/{z}/{x}/{y}.png',
+                                maxZoom: 19
+                            }),
+                        });
+
+                        map = new ol.Map({
+                            target: $this->id,
+
+                            layers: [baseLayer, layerFeatures /*PMJSLayer*/],
+
+                            /*layers: [],*/
+
+                            view: new ol.View({
+                                projection: 'EPSG:3857',
+                                center: ol.proj.fromLonLat(
+                                    [ $this->lng, $this->lat ]
+                                ), 
+                                zoom: $this->z
+                            }),
+
+                            controls: ol.control.defaults().extend(
+                                [
+                                    new ol.control.ScaleLine(),
+                                    /*new ol.control.ZoomSlider(),*/
+                                    /*new ol.control.FullScreen()*/
+                                ]
+                            ),
+
+                            /*
+                            interactions: ol.interaction.defaults().extend(
+                                [
+                                    new ol.interaction.DragRotateAndZoom()
+                                ]
+                            ),
+                            */
+                            multiWorld: true,
+                            
+                        });
+
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/olmap.js').done(function()    {    
+                        
+                            $javascript
+
+                        });
+
+                    });
+
                 });
-
-            });
-
-        ");
+                
+            ");
+        }
+        catch (Exception $e)
+        {
+            new TMessage('error', $e->getMessage());
+        }
 
     }
 
+    /**
+     * show
+     */
+    public function show()
+    {
+        $style = new TElement('style');
+        $style->add('#'.$this->id.'{ height:'.$this->height.';  width: '.$this->width.'; }');
+        
+        $this->createMap();
 
+        $script = new TElement('script');
+        $script->type = 'text/javascript';
+        $script->src  = 'vendor/marcelonees/plugins/src/OpenLayers/ol.js';
+
+        $content = new TElement('div');
+        $content->id = $this->id;
+        $content->class = 'openlayers';
+         
+        //parent::add( $style );
+        //parent::add( $script );
+        parent::add( $content );
+
+        // TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.css');
+        // TScript::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.js');
+        // TScript::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/olmap.js');
+
+        parent::show();
+        
+        // return  $style.$script.$content;
+    }    
+
+
+    /**
+     * addLayer
+     */
+    public function addLayer($layerName, $sourceType = "OSM", $attributions = NULL, $sourceUrl = NULL, $minZoom = 8, $maxZoom = 19)
+    {
+        /*
+        
+        var baseLayer = new ol.layer.Tile({
+            source: new ol.source.OSM()
+        });
+
+        var PMJSLayer = new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                attributions: '<br/><span>Prefeitura Municipal de Jaraguá do Sul, Março de 2020</span>',
+                url: 'https://www.jaraguadosul.sc.gov.br/geo/ortomosaico2020/{z}/{x}/{y}.png',
+                maxZoom: 19
+            }),
+        });
+        */
+
+        /*
+        $this->javascript .= "
+            var $layerName = new ol.layer.Tile({
+                source: new ol.source.$sourceType({
+                    ";
+
+        if ($attributions)  {$this->javascript .= "attributions: '$attributions',"; }
+        if ($sourceUrl)     {$this->javascript .= "url:          '$sourceUrl',";    }
+        if ($minZoom)       {$this->javascript .= "minZoom:      '$minZoom',";      }
+        if ($maxZoom)       {$this->javascript .= "maxZoom:      '$maxZoom',";      }
+
+        $this->javascript .= "
+                }),
+            });
+
+            map.addLayer($layerName);
+        ";
+        */
+
+        //$this->javascript .= "addLayer($layerName, $sourceType, $attributions, $sourceUrl, $minZoom, $maxZoom);";
+        $this->javascript .= "addLayer('$layerName', '$sourceType', '$attributions', '$sourceUrl', '$minZoom', '$maxZoom');";
+        TScript::create("$this->javascript");
+    }
+
+    /**
+     * DrawCircleOnLonLat on the Map
+     * @param $lon      Longitude
+     * @param $lat      Latitude
+     * @param $radius   Radius ('in meters', default: 300 )
+     */
+    public function DrawCircleOnLonLat($lon, $lat, $radius = 300)
+    {
+        try {
+            $this->javascript .= "DrawCircleOnLonLat($lon, $lat, $radius);";
+            TScript::create("$this->javascript");
+        }
+        catch (Exception $e)
+        {
+            new TMessage('error', $e->getMessage());
+        }
+        
+    }
 
     /**
      * Highlight and fly to a Geom on the Map
@@ -168,21 +295,80 @@ class OpenLayersMap extends TElement
     public function HighlightAndFlyToGeom($geom, $z = 10)
     {
         try {
-            TScript::create("
-                $.getScript('app/resources/geo/js/turf.min.js').done(function() {
-                    $.getScript('$this->olmapjs').done(function() {
-
-                        HighlightAndFlyToGeom(jQuery.parseJSON($geom), $z);
-
-                    });
-                });
-            ");
+            $this->javascript .= "HighlightAndFlyToGeom(jQuery.parseJSON($geom), $z);";
+            TScript::create("$this->javascript");
         }
         catch (Exception $e)
         {
             new TMessage('error', $e->getMessage());
         }
         
+    }
+
+    /**
+     * Highlight a Geom on the Map
+     * @param $geom Geom
+     * @param $z    Zoom (default: 10 )
+     */
+    public function HighlightGeom($geom, $z = 10)
+    {
+        try {
+            $this->javascript .= "HighlightGeom(jQuery.parseJSON($geom), $z);";
+            TScript::create("$this->javascript");
+        }
+        catch (Exception $e)
+        {
+            new TMessage('error', $e->getMessage());
+        }
+        
+    }
+
+
+    
+
+    /**
+     * setSize
+     */
+    public function setSize($width, $height)
+    {
+        $this->width  = (is_numeric($width))  ? $width  .'px' : $width;
+        $this->height = (is_numeric($height)) ? $height .'px' : $height;
+
+        $style = new TElement('style');
+        $style->add('#'.$this->id.'{ height:'.$this->height.';  width: '.$this->width.'; }');       
+        parent::add($style);
+
+        //parent::setProperty($this->id.'height',  $this->height);
+        //parent::setProperty($this->id.'width',   $this->width);
+
+        //parent::setProperty('height',   $this->height);
+        //parent::setProperty('width',    $this->width);
+    }
+
+
+    /**
+     * setWidth
+     */
+    public function setWidth($width = '100px') {
+        $this->width = $width;
+
+        $style = new TElement('style');
+        $style->add('#'.$this->id.'{ height:'.$this->height.';  width: '.$this->width.'; }');
+
+        parent::add($style);
+    }
+
+
+    /**
+     * setHeight
+     */
+    public function setHeight($height = '100px') {
+        $this->height = $height;
+
+        $style = new TElement('style');
+        $style->add('#'.$this->id.'{ height:'.$this->height.';  width: '.$this->width.'; }');       
+
+        parent::add($style);        
     }
 
 
@@ -222,20 +408,6 @@ class OpenLayersMap extends TElement
     }
 
 
-    /**
-     * setSize
-     */
-    public function setSize($width, $height)
-    {
-        $this->width  = (is_numeric($width))  ? $width.'px'  : $width;
-        $this->height = (is_numeric($height)) ? $height.'px' : $height;
-
-        $style = new TElement('style');
-        $style->add('#'.$this->id.'{ height:'.$this->height.';  width: '.$this->width.'; }');       
-        parent::add($style);
-
-    }
-
 
     /**
      * __set
@@ -244,8 +416,53 @@ class OpenLayersMap extends TElement
     {
         $this->$atrib = $value;
     }
-    
-    
+
+    public function centroidOfGeom($geom) {
+        try {
+            $this->javascript .= "
+                const centroid = centroidOfGeom($geom);
+                console.log(centroid);
+            ";
+            $this->centroid;
+            TScript::create("$this->javascript");
+        }
+        catch (Exception $e)
+        {
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * showPopup
+     */
+    public function showPopup($text) {
+        
+        $this->javascript .= "
+            
+            var popup = new ol.Overlay.Popup();
+            map.addOverlay(popup);
+            
+            map.on('click', function(evt) {
+                var prettyCoord = ol.coordinate.toStringHDMS(
+                    ol.proj.transform(evt.coordinate, 'EPSG:3857', 'EPSG:4326'), 2
+                );
+
+                /*console.log(evt.coordinate);*/
+
+                popup.show(evt.coordinate, 
+                    '
+                        <div>
+                            $text
+                        </div>
+                    '
+                );
+            });
+        ";
+
+        TScript::create("$this->javascript");
+    }
+
+
     /**
      * addMarker - Add a point on the map
      */
