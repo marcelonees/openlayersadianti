@@ -6,6 +6,9 @@
     border: 1px solid #cccccc;
     bottom: 12px;
     left: -50px;
+    min-height: 180px;
+    /*border-radius: 10px;*/
+    visibility: hidden;
 }
 
 .ol-popup:after, .ol-popup:before {
@@ -23,6 +26,7 @@
     border-width: 10px;
     left: 48px;
     margin-left: -10px;
+    visibility: visible;
 }
 
 .ol-popup:before {
@@ -36,6 +40,7 @@
     min-width: 170px;
     max-height: 200px;
     overflow-x: auto;
+    visibility: visible;
 }
 
 .ol-popup-closer {

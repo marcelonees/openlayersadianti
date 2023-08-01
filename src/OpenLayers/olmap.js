@@ -4,9 +4,6 @@ var geoserver_url = 'https://geo.jaraguadosul.sc.gov.br/gs/geoserver-hive/PMJS/w
  *  Cria o mapa
  */
 
-console.log('Cria o mapa');
-
-
 var view = map.getView();
 
 view.animate({
@@ -18,7 +15,6 @@ view.animate({
 /**
  * SETA VARIAVEIS DE MAPA
  */
-
 
 
 
@@ -37,10 +33,10 @@ var HighlightImoveisLayer = new ol.layer.Vector({
 	style: new ol.style.Style({
 		stroke: new ol.style.Stroke({
 			color: 'rgba(0,0,0,0)',
-			width:1
+			width: 1
 		}),
 		fill: new ol.style.Fill({
-			color:'rgba(0,0,0,0)'
+			color: 'rgba(0,0,0,0)'
 		})
 	})
 });
@@ -49,48 +45,20 @@ HighlightImoveisLayer.setZIndex(7);
 map.addLayer(HighlightImoveisLayer);
 
 
+
 /**
  * CRIA FUNÇÃO PARA LIMPAR OVERLAYS MAS MANTER ALGUNS ESPECÍFICOS
  */
 function limparOverlays(){
-	map.getOverlays().clear();
-    /*
+	/*map.getOverlays().clear();*/
 	map.addOverlay(Imov_Popup);
-    */
 }
 
-/*
+
+
+
 var Imov_Popup = new Popup({width:'350px'});
 map.addOverlay(Imov_Popup);
-*/
-
-
-/**
- * CAMADA DE INSPEÇÃO DE RUAS
- */
-
-var HoverRuasFeatures = [];
-var HighlightRuasSource = new ol.source.Vector({
-	format: new ol.format.GeoJSON()
-})
-
-var HighlightRuasLayer = new ol.layer.Vector({
-	source: HighlightRuasSource,
-	style: new ol.style.Style({
-		stroke: new ol.style.Stroke({
-			color: 'rgba(6,144,3,1)',
-			width:1
-		}),
-		fill: new ol.style.Fill({
-			color: 'rgba(191,237,7,0.5)',
-		})
-	})
-})
-
-HighlightRuasLayer.setZIndex(7);
-map.addLayer(HighlightRuasLayer);
-
-
 
 
 /**
@@ -98,25 +66,154 @@ map.addLayer(HighlightRuasLayer);
  */
 var HighlightGeomSource = new ol.source.Vector({
 	format: new ol.format.GeoJSON()
-})
+});
+
+var HighlightGeomStyle = new ol.style.Style({
+	stroke: new ol.style.Stroke({
+		color: strokeColor,
+		width: 3
+	}),
+	fill: new ol.style.Fill({
+		color: fillColor
+	})
+});
+
+var HighlightGeomLayer2 = new ol.layer.Vector({
+	source: HighlightGeomSource,
+	style: (function() {
+		var defaultStyle = [new ol.style.Style({
+		  fill: new ol.style.Fill({color: 'navy'}),
+		  stroke: new ol.style.Stroke({color: 'black', width: 1})
+		})];
+		var ruleStyle = [new ol.style.Style({
+		  fill: new ol.style.Fill({color: 'olive'}),
+		  stroke: new ol.style.Stroke({color: 'black', width: 1})
+		})];
+		return function(feature, resolution) {
+		  if (feature.get('class') == 'A') {
+			return ruleStyle;
+		  } else {
+			return defaultStyle;
+		  }
+		};
+	})()
+	  
+});
 
 var HighlightGeomLayer = new ol.layer.Vector({
 	source: HighlightGeomSource,
-	style: new ol.style.Style({
-		stroke: new ol.style.Stroke({
-			color: 'rgba(149,31,212,1)',
-			width:3
-		}),
-		fill: new ol.style.Fill({
-			color:'rgba(149,31,212,0.10)'
-		})
-	})
-})
+	style: (
+		function () { 
+
+			var stroke = new ol.style.Stroke({
+				color: 'black'
+			});
+
+			var textStroke = new ol.style.Stroke({
+				color: '#fff',
+				width: 3
+			});
+
+			var textFill = new ol.style.Fill({
+				color: '#000'
+			});
+			
+			return function (feature, resolution) { 
+				control = feature.get('control');
+				/*console.log(control);*/
+
+				/**
+				 * Atividades tem cores diferentes, conforme seu Status
+				 */
+				if (control == 'VigEpiMinhasAtividades') {
+					logradouro 		= feature.get('logradouro');
+					logradouro_num 	= feature.get('logradouro_num');
+					bairro 			= feature.get('bairro');
+					quarteirao 		= feature.get('quarteirao');
+					text 			= logradouro_num;
+
+					textStyle = new ol.style.Text({
+						font: '10px Calibri,sans-serif',
+						text: text,
+						fill: textFill,
+						stroke: textStroke
+					});
+
+					classe = feature.get('class');
+
+					switch(classe) {
+						case "A":
+						  	/* code block */
+							return new ol.style.Style({ 
+								stroke: new ol.style.Stroke({color: 'black', width: 1}),
+								fill: new ol.style.Fill({ color: 'rgba(87,213,87,1)' }),
+								text: textStyle
+							});						
+						  	break;
+						case "I":
+						  	/* code block */
+							return new ol.style.Style({ 
+								stroke: new ol.style.Stroke({color: 'black', width: 1}),
+								fill: new ol.style.Fill({ color: 'rgba(204,229,255,1)'}),
+								text: textStyle
+							});							
+						  	break;
+						case "F":
+							/* code block */
+							return new ol.style.Style({ 
+								stroke: new ol.style.Stroke({color: 'black', width: 1}),
+								fill: new ol.style.Fill({ color: 'rgba(226,227,229,1)' }),
+								text: textStyle
+							});							
+							break;
+						default:
+						  	/* code block */
+						  	return new ol.style.Style({ 
+								stroke: new ol.style.Stroke({color: 'black', width: 1}),
+								fill: new ol.style.Fill({ color: 'rgba(244,67,54,1)' }),
+								text: textStyle
+							});						  
+					}
+
+				} 
+				/**
+				 * Outras telas
+				 */
+				else {
+					return new ol.style.Style({ 
+						stroke: new ol.style.Stroke({color: 'black', width: 1}),
+						fill: new ol.style.Fill({ color: 'rgba(44,88,55,0.4)' }),
+						text: new ol.style.Text({
+							font: '10px Calibri,sans-serif',
+							/*text: text,*/
+							fill: textFill,
+							stroke: textStroke
+						})
+					});					
+				}
+			}
+		}
+	)()
+});
 
 HighlightGeomLayer.setZIndex(7);
 map.addLayer(HighlightGeomLayer);
 
+function configStroke(strokeColor, fillColor) {
 
+	HighlightGeomLayer.setStyle([
+		new ol.style.Style({
+			stroke: new ol.style.Stroke({
+				color: strokeColor,
+				width: 3
+			}),
+			fill: new ol.style.Fill({
+				color: fillColor
+			})
+		})
+	]);
+
+}
 
 
 /**
@@ -193,8 +290,15 @@ function DrawCircleOnLonLat(lon, lat, radius) {
 /**
  * FUNÇÕES DE GEOMETRIA
  */
+
+function clearGeomSource() {
+	console.log('clearGeomSource');
+	HighlightGeomSource.clear();
+}
+
 function HighlightGeom(geom){
-    HighlightGeomSource.clear();
+	/*console.log(geom);*/
+    // HighlightGeomSource.clear();
     HighlightGeomSource.addFeatures(
         (new ol.format.GeoJSON()).readFeatures(
             geom, {
@@ -204,12 +308,10 @@ function HighlightGeom(geom){
     );
 }
 
-
 function HighlightAndFlyToGeom(geom, zoom) {
     HighlightGeom(geom);
     const centroid = turf.centroid(geom);
     const centroidproj = ol.proj.fromLonLat(centroid.geometry.coordinates);
-    /*console.log('centroid: ' + centroid.geometry.coordinates);*/
     flyTo(centroidproj, zoom);
 }
 
@@ -217,20 +319,20 @@ function HighlightAndFlyToGeom(geom, zoom) {
 function centroidOfGeom(geom) {
 
     const centroid = turf.centroid(geom);
-    
+	lon = centroid.geometry.coordinates[0];
+    lat = centroid.geometry.coordinates[1];
+
     if (document.getElementById("lat")) {
-        document.getElementById("lat").setAttribute("value", centroid.geometry.coordinates[1]);
+		document.getElementById("lat").value = lat;
     }
 
     if (document.getElementById("lon")) {
-        document.getElementById("lon").setAttribute("value", centroid.geometry.coordinates[0]);
+		document.getElementById("lon").value = lon;
     }
-    console.log('centroid: ' + centroid);
-    /*document.getElementById('lat').setAttribute("value", centroid.geometry.coordinates[1s]);*/
-    
-    return centroid.geometry.coordinates;
 
+    return centroid.geometry.coordinates;
 }
+
 
 function flyTo(location, zoom = null, done) {
     var duration = 1500;
@@ -280,17 +382,6 @@ function flyTo(location, zoom = null, done) {
 
 
 /**
- * Eventos no StartUp
- */
-if (typeof(HIGHLIGHT_IMOVEL)!='undefined') {
-    HighlightandFlyToGeom(HIGHLIGHT_IMOVEL, 18)
-} else if (typeof(HIGHLIGHT_RUA)!='undefined') {
-    HighlightandFlyToGeom(HIGHLIGHT_RUA, 17)
-}
-
-
-
-/**
  * FUNCOES DE INTEGRAÇÃO DE CAMADAS
  */
 
@@ -299,14 +390,18 @@ function addNode(node) {
 		case 'wms':
 			addWMSLayer(node);
 			break;
+
 		case 'raster-XYZtiles':
 			addXYZTileLayer(node);
 			break;
+
 		case 'blank':
 			break;
+
 		case 'vector-XYZtiles':
 			addXYZVectorLayer(node);
 			break;
+
 		default:
 	}
 }
@@ -316,13 +411,17 @@ function removeNode(node) {
 		case 'wms':
 			removeWMSLayer(node);
 			break;
+
 		case 'raster-XYZtiles':
 			removeXYZTileLayer(node);
+
 		case 'blank':
 			break;
+
 		case 'vector-XYZtiles':
 			removeXYZVectorLayer(node);
 			break;
+
 		default:
 	}
 }
@@ -331,8 +430,15 @@ function addWMSLayer(node) {
 	var WMSLayer = new ol.layer.Tile({
 		name:node.key,
 		source: new ol.source.TileWMS({
-			url:node.data.source_url,
-			params:{'layers':node.data.lyr,'TILED':true,'tiled':true,'TRANSPARENT':true,'srs':'EPGS:3857','STYLES':node.data.layer_styles},
+			url: node.data.source_url,
+			params: {
+				'layers':		node.data.lyr,
+				'TILED':		true,
+				'tiled':		true,
+				'TRANSPARENT':	true,
+				'srs':			'EPGS:3857',
+				'STYLES':		node.data.layer_styles
+			},
 			serverType: 'geoserver',
 			crossOrigin: 'anonymous'
 		})
@@ -358,10 +464,10 @@ function addXYZTileLayer(node){
 		name:node.key,
         maxZoom: node.data.maxzoom || 18,
 		source: new ol.source.XYZ({
-			url:node.data.source_url,
-			crossOrigin: 'anonymous',
-            maxZoom:node.data.maxzoom || 18,
-            tileSize: node.data.tileSize || 256
+			url:			node.data.source_url,
+			crossOrigin: 	'anonymous',
+            maxZoom:		node.data.maxzoom  || 18,
+            tileSize: 		node.data.tileSize || 256
 		})
 	})
 	XYZTileLayer.setZIndex(node.data.pane);
@@ -379,6 +485,7 @@ function removeXYZTileLayer(node){
 		map.removeLayer(layersToRemove[0]);
 	}
 }
+
 function addXYZVectorLayer(node){
 	var XYZVectorLayer = new ol.layer.VectorTile({
 		name:node.key,
@@ -391,7 +498,7 @@ function addXYZVectorLayer(node){
 	})
 	XYZVectorLayer.setZIndex(node.data.pane);
 	map.addLayer(XYZVectorLayer);
-	console.log(node.data.style_url);
+	/*console.log(node.data.style_url);*/
 	fetch(node.data.style_url).then(function(response) {
 		  response.json().then(function(glStyle) { 
 		    olms.stylefunction(XYZVectorLayer, glStyle,node.data.style_key);
@@ -460,35 +567,9 @@ Mouse_Position = function(opt_options){
 }
 
 
-Attributions = function(opt_options){
-	this.container = document.createElement('div');
-	this.container.classList.add('custom-control');
-	this.container.classList.add('rectangle-long-ctrl');
-	this.container.classList.add('Attributions-Control');
-
-	const atr1 = $('<div class="rectangle-auto-size">Prefeitura Municipal de Jaraguá do Sul</div>');
-	this.container.appendChild(atr1[0]);
-
-	const atr2 = $('<div class="rectangle-auto-size">Secretaria Municipal de Planejamento e Urbanismo | Diretoria de TI</div>');
-	this.container.appendChild(atr2[0]);
-
-	const atr3 = $('<div class="rectangle-auto-size">Contribuidores do <a href="https://www.openstreetmap.org/">OpenStreetMap | Google Satellite</div>');
-	this.container.appendChild(atr3[0]);
-
-	$(this.container).css('font-size',          '10px');
-	$(this.container).css('background-color',   'rgba(0,0,0,0');
-	$(this.container).css('text-align',         'right');
-	$(this.container).css('display',            'flex');
-	$(this.container).css('flex-wrap',          'wrap');
-	$(this.container).css('width',              '320px');
-	$(this.container).css('justify-content',    'right');
-
-	ol.control.Control.call(this,{
-		element:this.container
-	});
-}
 
 
+/*
 Rua_Touch_Control = function(opt_options){
 	this.container = document.createElement('div');
 	this.container.classList.add('custom-control');
@@ -552,7 +633,16 @@ Rua_Touch_Control = function(opt_options){
 			}, function(data) {
 				data = turf.buffer(data,5,{units:'metres'})
 				HighlightRuasSource.clear();
-				HighlightRuasSource.addFeatures((new ol.format.GeoJSON()).readFeatures(data,{featureProjection: 'EPSG:3857'}))		
+				HighlightRuasSource.addFeatures(
+					(
+						new ol.format.GeoJSON()
+					).readFeatures(
+						data, 
+						{
+							featureProjection: 'EPSG:3857'
+						}
+					)
+				)		
 			})
 		}
 	};
@@ -587,17 +677,18 @@ Rua_Touch_Control = function(opt_options){
 		var content     = document.createElement('div');
 		el.appendChild(content);
 		content.appendChild(getLoader());
-		console.log(feature);
+		//console.log(feature);
 		var chave       = feature.getProperties().chave
 		var i_ruas      = parseInt(feature.getProperties().chave.match(/\d/g).join(''));;
-		console.log(i_ruas);
+		//console.log(i_ruas);
+		//=============================
 		$.ajax({
 			url: 'engine.php',
 			crossDomain: true,
 			data:{
-				class:'GeoMapView',
-				method:'getRuaPopUp',
-				RUA_I_RUAS:i_ruas,
+				class:		'GeoMapView',
+				method:		'getRuaPopUp',
+				RUA_I_RUAS:	i_ruas,
 				static:1
 			}
 		}).done(function(data){
@@ -610,16 +701,19 @@ Rua_Touch_Control = function(opt_options){
 
 		});
 		Imov_Popup.show(coordinate, el)
+		==============================//
 	}
 }
-
+*/
 
 Imov_Touch_Control  = function(opt_options){
+	this.TouchImovEnabled = false;
 	this.container  = document.createElement('div');
 	this.container.classList.add('custom-control');
-	this.TouchImovEnabled = false;
 	this.container.classList.add('small-ctrl');
-	this.container.classList.add('Imov-Touch-Control'); 
+	this.container.classList.add('Imov-Touch-Control');
+
+	/*
 	this.button     = document.createElement('button');
 	this.name       = 'TouchImov';
 	this.button.innerHTML = "<i class='far fa-hand-point-down fa-2x' color: #006600'></i>";
@@ -631,6 +725,7 @@ Imov_Touch_Control  = function(opt_options){
 		}
 	});
 	this.container.appendChild(this.button);
+	*/
 
 	ol.control.Control.call(this,{
 		element:this.container
@@ -640,25 +735,27 @@ Imov_Touch_Control  = function(opt_options){
 		disableOtherControls(this.name);
 		this.TouchImovEnabled = true;
 		this.container.classList.add('small-ctrl-extend');
-		this.button.innerHTML = "Inspecionar Imóvel <i class='far fa-hand-point-down fa-2x' color: #006600'></i>";
+		/*this.button.innerHTML = "Inspecionar Imóvel <i class='far fa-hand-point-down fa-2x' color: #006600'></i>";*/
 
 		map.getViewport().style.cursor = 'crosshair';
+		
 		map.on('moveend',       this.onDragUpdate);
 		map.on('pointermove',   this.onHighlightFeature);
 		map.on('singleclick',   this.onSingleClick);
+		
 
 		this.onDragUpdate();
 	};
 
 	this.onDisable = function(){
 		this.TouchImovEnabled = false;
-		this.button.innerHTML = "<i class='far fa-hand-point-down fa-2x' color: #006600'></i>";
+		/*this.button.innerHTML = "<i class='far fa-hand-point-down fa-2x' color: #006600'></i>";*/
 		map.getViewport().style.cursor = '';
 		this.container.classList.remove('small-ctrl-extend');
 
 		map.un('moveend',       this.onDragUpdate);
-		map.un('singleclick',   this.onSingleClick);
 		map.un('pointermove',   this.onHighlightFeature);
+		map.un('singleclick',   this.onSingleClick);
 
 		HighlightImoveisSource.clear();
 	};
@@ -666,18 +763,73 @@ Imov_Touch_Control  = function(opt_options){
 	this.onDragUpdate = function(){
 		const geoserver_url = 'https://geo.jaraguadosul.sc.gov.br/gs/geoserver-hive/PMJS/wms';
 		if (map.getView().getZoom() > 16) {
-			$.post(geoserver_url,{
+
+			$.post(geoserver_url, {
 				service:        'WFS',
 				request:        'GetFeature',
-				typeNames:      'lim_lotes_urbanos',
+				/*typeNames:      'lim_lotes_urbanos',*/
+				typeNames:      'lotes',
+				version:        '2.0.0',
+				srsName:        'EPSG:4326',
+				outputFormat:   'application/json',
+				bbox:			map.getView().calculateExtent(map.getSize()).join(',') + ', EPSG:3857'
+			}, function(data) {
+				/*HighlightImoveisSource.clear();*/
+				HighlightImoveisSource.addFeatures(
+					(new ol.format.GeoJSON()).readFeatures(
+						data, {
+							featureProjection: 'EPSG:3857'
+						}
+					)
+				)
+			});
+
+			/*
+			$.post(geoserver_url, {
+				service:        'WFS',
+				request:        'GetFeature',
+				typeNames:      'eixo_ferrovia',
 				version:        '2.0.0',
 				srsName:        'EPSG:4326',
 				outputFormat:   'application/json',bbox:map.getView().calculateExtent(map.getSize()).join(',') + ', EPSG:3857'
-			},function(data) {
+			}, function(data) {
 				HighlightImoveisSource.clear();
-				HighlightImoveisSource.addFeatures((new ol.format.GeoJSON()).readFeatures(data,{featureProjection: 'EPSG:3857'}))
-			})
+				HighlightImoveisSource.addFeatures(
+					(
+						new ol.format.GeoJSON()
+					).readFeatures(
+						data, {
+							featureProjection: 'EPSG:3857'
+						}
+					)
+				)
+			});
+			*/		
+
+			/*
+			$.post(geoserver_url, {
+				service:        'WFS',
+				request:        'GetFeature',
+				typeNames:      'lim_municipal',
+				version:        '2.0.0',
+				srsName:        'EPSG:4326',
+				outputFormat:   'application/json',bbox:map.getView().calculateExtent(map.getSize()).join(',') + ', EPSG:3857'
+			}, function(data) {
+				HighlightImoveisSource.clear();
+				HighlightImoveisSource.addFeatures(
+					(
+						new ol.format.GeoJSON()
+					).readFeatures(
+						data, {
+							featureProjection: 'EPSG:3857'
+						}
+					)
+				)
+			});
+			*/
+
 		}
+
 	};
 
 	this.onHighlightFeature = function(e) {
@@ -692,6 +844,7 @@ Imov_Touch_Control  = function(opt_options){
 			})
 		})
 		for (i=0;i<HoverImoveisFeatures.length;i++) {
+			/*console.log(HoverImoveisFeatures[i].get('id_'));*/
 			HoverImoveisFeatures[i].setStyle(null);
 		}
 		HoverImoveisFeatures = [];
@@ -707,8 +860,12 @@ Imov_Touch_Control  = function(opt_options){
 		var content     = document.createElement('div');
 		el.appendChild(content);
 		content.appendChild(getLoader());
-        /*
-		__adianti_ajax_exec('class=GeoMapView&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0],
+		
+
+		
+		/*
+		console.log(e);
+		__adianti_ajax_exec('class=VigEpiReconhecimentoGeograficoForm&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0],
 			function(data){
 
 				$(content).html(data);
@@ -720,38 +877,40 @@ Imov_Touch_Control  = function(opt_options){
 				}, false);
 			},false
 		);
+
 		Imov_Popup.show(e.coordinate,el)
-        */
+		*/
+		
+        
 	}
 }
 
 
 ol.inherits(Imov_Touch_Control, ol.control.Control);
-ol.inherits(Rua_Touch_Control,  ol.control.Control);
+/*ol.inherits(Rua_Touch_Control,  ol.control.Control);*/
 ol.inherits(Mouse_Position,     ol.control.Control);
-ol.inherits(Attributions,       ol.control.Control);
+/*ol.inherits(Attributions,       ol.control.Control);*/
 
 
 Control_Imov_Touch     = new Imov_Touch_Control;
-Control_Rua_Touch      = new Rua_Touch_Control;
+/*Control_Rua_Touch      = new Rua_Touch_Control;*/
 Control_Mouse_Position = new Mouse_Position;
-Control_Attributions   = new Attributions;
+/*Control_Attributions   = new Attributions;*/
 
 if (typeof CustomControls == 'undefined') {
     
     var CustomControls   = {
         'TouchImov': Control_Imov_Touch,
-        'TouchRua': Control_Rua_Touch,
+        /*'TouchRua':  Control_Rua_Touch,*/
     }
     
 }
 
 
-
 map.addControl(Control_Imov_Touch);
-map.addControl(Control_Rua_Touch);
+/*map.addControl(Control_Rua_Touch);*/
 map.addControl(Control_Mouse_Position);
-map.addControl(Control_Attributions);
+/*map.addControl(Control_Attributions);*/
 
 Control_Imov_Touch.onEnable();
 
@@ -769,156 +928,212 @@ function disableOtherControls(controltokeep){
 
 
 
-    function onMapClick(e) {
 
-        /*
-        console.log(e);
-        */
-        lon = e.coordinate[0];
-        lat = e.coordinate[1];
+/*
+var sourceFeatures = new ol.source.Vector();
+var layerFeatures  = new ol.layer.Vector({source: sourceFeatures});
+*/
 
-        lonlat = ol.proj.transform(
-            [lon, lat],
-            'EPSG:3857',
-            'EPSG:4326'
-        );
+/*
+var vectorLayer;
+var features = [];
+*/
 
-        /*console.log(lonlat);*/
-        /*DrawCircleOnLonLat(lonlat[0], lonlat[1], 300);*/
+function addPin(Markers) {
 
-		var f = map.forEachFeatureAtPixel(
-			e.pixel,
-			function(ft, layer){
-
-				/*
-				console.log(layer);
-				console.log(ft);
-				*/
-				
-
-				/*
-				var polygonGeometry = e.feature.getGeometry();
-				var coords = iconFeature.getGeometry().getCoordinates();
-				polygonGeometry.intersectsCoordinate(coords)
-				*/
-
-				if (!ft.geometryChangeKey_.bindTo.values_.chave) {
-
-					/*alert('Coordenadas: ' + lon + ', ' + lat);*/
-
-					if (document.getElementById("lat")) {
-						document.getElementById("lat").setAttribute("value", lonlat[1]);
-					}
-			
-					if (document.getElementById("lon")) {
-						document.getElementById("lon").setAttribute("value", lonlat[0]);        
-					}
-				}				
-				
-				return ft;
-			}
-		);
-		
-		/*
-		if (f && f.get('type') == 'click') {
-			
-			var geometry = f.getGeometry();
-			var coord = geometry.getCoordinates();
-			
-			var content = '<p>'+f.get('desc')+'</p>';
-
-			
-
-			// popup.show(coord, content);
-			
-		}*/
-		/* else {
-			popup.hide();
-		}*/
-
-
-    }
-
-    map.on('click', onMapClick);
-
-	/*
-	var style = [
-		new ol.style.Style({
-			image: new ol.style.Icon(({
-				scale: 0.7,
-				rotateWithView: false,
-				anchor: [0.5, 1],
-				anchorXUnits: 'fraction',
-				anchorYUnits: 'fraction',
-				opacity: 1,
-				src: 'https://raw.githubusercontent.com/jonataswalker/map-utils/master/images/marker.png'
-			})),
-			zIndex: 5
-		}),
-		new ol.style.Style({
-			image: new ol.style.Circle({
-				radius: 5,
-				fill: new ol.style.Fill({
-					color: 'rgba(255,255,255,1)'
-				}),
-				stroke: new ol.style.Stroke({
-					color: 'rgba(0,0,0,1)'
-				})
-			})
-		})
-	];
-
-	
-	var popup = new ol.Overlay.Popup();
-	map.addOverlay(popup);
-
-	var feature = new ol.Feature({
-		type: 'click',
-		desc: 'long_string',
-		geometry: new ol.geom.Point([0, 0])
-	});
-
-	feature.setStyle(style);
-	sourceFeatures.addFeature(feature);
-
-	map.on('click', function(evt) {
-
-        lon = evt.coordinate[0];
-        lat = evt.coordinate[1];
-
-        lonlat = ol.proj.transform(
-            [lon, lat],
-            'EPSG:3857',
-            'EPSG:4326'
-        );
-
-
-		var f = map.forEachFeatureAtPixel(
-			evt.pixel,
-			function(ft, layer){return ft;}
-		);
-		
-		if (f && f.get('type') == 'click') {
-			var geometry = f.getGeometry();
-			var coord = geometry.getCoordinates();
-			
-			var content = '<p>'+f.get('desc')+'</p>';
-
-			popup.show(coord, content);
-			
-		} else {
-			popup.hide();
+	map.getLayers()
+		.getArray()
+		.filter(layer => layer.get('name') === 'VLMarker')
+		.forEach(function(layer) {
+			var source = layer.getSource();
+			map.removeLayer(layer);
 		}
-		
+	);
+
+	var item = Markers;
+	var longitude = item.lng;
+	var latitude  = item.lat;
+	var label  	  = item.label;
+
+	var iconFeature = new ol.Feature({
+		geometry: new ol.geom.Point(
+			ol.proj.transform(
+				[longitude, latitude], 
+				'EPSG:4326', 
+				'EPSG:3857'
+			)
+		),
+		name: label
 	});
 
-	map.on('pointermove', function(e) {
-		if (e.dragging) { popup.hide(); return; }
-		
-		var pixel 	= map.getEventPixel(e.originalEvent);
-		var hit 	= map.hasFeatureAtPixel(pixel);
-		
-		map.getTarget().style.cursor = hit ? 'pointer' : '';
+	var iconStyle = new ol.style.Style({
+		image: new ol.style.Icon(
+			{
+				anchor: [0.5, 1],
+				src: "vendor/marcelonees/plugins/src/OpenLayers/marker-icon.png",
+				scale: 0.5
+			}
+		)
 	});
 
-	*/
+	var labelStyle = new ol.style.Style({
+		text: new ol.style.Text({
+			font: '12px Calibri,sans-serif',
+			overflow: true,
+			fill: new ol.style.Fill({
+				color: '#000'
+			}),
+			stroke: new ol.style.Stroke({
+				color: '#fff',
+				width: 3
+			}),
+			offsetY: -12
+		})
+	});
+	var style = [iconStyle, labelStyle];
+	
+	iconFeature.setStyle(iconStyle);
+	features.push(iconFeature);
+
+	var vectorSource = new ol.source.Vector({
+		features: features
+	});
+
+	vectorLayer = new ol.layer.Vector({
+		source: vectorSource,
+		name: 'VLMarker',
+		style: function(feature) {
+        	labelStyle.getText().setText(feature.get('name'));
+        	return style;
+      	}
+	});
+
+	map.addLayer(vectorLayer);
+}
+
+
+/**
+ * 
+ * Quando há um click no mapa
+ */
+function onMapClick(e) {
+
+	/*console.log(e);*/
+	
+	lon = e.coordinate[0];
+	lat = e.coordinate[1];
+
+	lonlat = ol.proj.transform(
+		[lon, lat],
+		'EPSG:3857',
+		'EPSG:4326'
+	);
+
+	var lon = lonlat[0];
+	var lat = lonlat[1];
+
+
+	/*console.log(lonlat);*/
+	/*DrawCircleOnLonLat(lonlat[0], lonlat[1], 300);*/
+
+	var f = map.forEachFeatureAtPixel(
+		e.pixel,
+		function(ft, layer){
+			
+			/*console.log(layer);*/
+			console.log(ft);
+
+			/*
+			var polygonGeometry = e.feature.getGeometry();
+			var coords = iconFeature.getGeometry().getCoordinates();
+			polygonGeometry.intersectsCoordinate(coords)
+			*/
+			var coordinate  = ol.proj.toLonLat(e.coordinate,'EPSG:3857');
+			var el          = document.createElement('div');
+			var content     = document.createElement('div');
+			el.appendChild(content);
+			content.appendChild(getLoader());
+
+			/* Qual Form do Adianti está chamando essa função? */
+			control = ft.geometryChangeKey_.bindTo.values_.control;
+
+			if (control == 'VigEpiMinhasAtividades') {				
+				programacao_id 		  = ft.geometryChangeKey_.bindTo.values_.programacao_id;
+				lote_id 			  = ft.geometryChangeKey_.bindTo.values_.lote_id;
+				inscricao_imobiliaria = ft.geometryChangeKey_.bindTo.values_.inscricao_imobiliaria;
+
+				console.log('VigEpiMinhasAtividades: ' + inscricao_imobiliaria);
+				/* __adianti_ajax_exec('class=VigEpiMinhasAtividades&method=generatePopupStructure&programacao_id='+programacao_id&'&lat='+coordinate[1]+'&lng='+coordinate[0]+'&inscricao_imobiliaria='+inscricao_imobiliaria,*/
+				__adianti_ajax_exec('class=VigEpiMinhasAtividades&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0]+'&programacao_id='+programacao_id+'&inscricao_imobiliaria='+inscricao_imobiliaria,
+					function(data){
+						$(content).html(data);
+		
+						Imov_Popup.getElement().addEventListener('click', function(e) {
+							if($(e.target).attr('data-toggle')=='tab'){
+								$(e.target).tab('show');
+							}
+						}, false);
+					}, false
+				);
+				Imov_Popup.show(e.coordinate, el);
+			}
+			else
+			if (!ft.geometryChangeKey_.bindTo.values_.chave) {
+
+				if (document.getElementById("lat")) {
+					document.getElementById("lat").value = lat;
+				}
+		
+				if (document.getElementById("lon")) {
+					document.getElementById("lon").value = lon;
+				}
+
+				var Markers = {
+					lat: lat, 
+					lng: lon
+				};
+
+				addPin(Markers);
+
+			} else {
+
+				/* TODO - Usar apenas na tela de RG? */
+				if (document.getElementById("lat")) {
+					document.getElementById("lat").value = lat;
+				}
+		
+				if (document.getElementById("lon")) {
+					document.getElementById("lon").value = lon;
+				}
+
+				/*
+				var coordinate  = ol.proj.toLonLat(e.coordinate,'EPSG:3857');
+				var el          = document.createElement('div');
+				var content     = document.createElement('div');
+				el.appendChild(content);
+				content.appendChild(getLoader());
+				*/
+		
+				__adianti_ajax_exec('class=VigEpiReconhecimentoGeograficoForm&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0],
+					function(data){
+		
+						$(content).html(data);
+		
+						Imov_Popup.getElement().addEventListener('click', function(e) {
+							if($(e.target).attr('data-toggle')=='tab'){
+								$(e.target).tab('show');
+							}
+						}, false);
+					}, false
+				);
+
+				Imov_Popup.show(e.coordinate, el);
+			}
+			
+			return ft;
+		}
+	);
+	
+}
+
+map.on('click', onMapClick);
