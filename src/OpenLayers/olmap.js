@@ -11,11 +11,9 @@ view.animate({
     zoom: 14
 });
 
-
 /**
  * SETA VARIAVEIS DE MAPA
  */
-
 
 
 /**
@@ -49,16 +47,16 @@ map.addLayer(HighlightImoveisLayer);
 /**
  * CRIA FUNÇÃO PARA LIMPAR OVERLAYS MAS MANTER ALGUNS ESPECÍFICOS
  */
+
+var Imov_Popup = new Popup({width:'350px'});
+map.addOverlay(Imov_Popup);
+
+
 function limparOverlays(){
 	/*map.getOverlays().clear();*/
 	map.addOverlay(Imov_Popup);
 }
 
-
-
-
-var Imov_Popup = new Popup({width:'350px'});
-map.addOverlay(Imov_Popup);
 
 
 /**
@@ -76,28 +74,6 @@ var HighlightGeomStyle = new ol.style.Style({
 	fill: new ol.style.Fill({
 		color: fillColor
 	})
-});
-
-var HighlightGeomLayer2 = new ol.layer.Vector({
-	source: HighlightGeomSource,
-	style: (function() {
-		var defaultStyle = [new ol.style.Style({
-		  fill: new ol.style.Fill({color: 'navy'}),
-		  stroke: new ol.style.Stroke({color: 'black', width: 1})
-		})];
-		var ruleStyle = [new ol.style.Style({
-		  fill: new ol.style.Fill({color: 'olive'}),
-		  stroke: new ol.style.Stroke({color: 'black', width: 1})
-		})];
-		return function(feature, resolution) {
-		  if (feature.get('class') == 'A') {
-			return ruleStyle;
-		  } else {
-			return defaultStyle;
-		  }
-		};
-	})()
-	  
 });
 
 var HighlightGeomLayer = new ol.layer.Vector({
@@ -243,9 +219,7 @@ function addLayer(layerName, sourceType = 'OSM', attributions = NULL, sourceUrl 
 }
 
 
-
-
-function DrawCircleOnLonLat(lon, lat, radius) {
+function DrawCircleOnLonLat(lon, lat, radius, strokeColor = 'rgba(255,15,15)', fillColor = 'rgba(255,15,15, 0.1)') {
 
     var circle = new ol.geom.Circle(
         ol.proj.transform(
@@ -268,11 +242,11 @@ function DrawCircleOnLonLat(lon, lat, radius) {
         style: [
             new ol.style.Style({
                 stroke: new ol.style.Stroke({
-                    color: 'rgba(255,15,15)',
+                    color: strokeColor,
                     width: 3
                 }),
                 fill: new ol.style.Fill({
-                    color: 'rgba(255,15,15, 0.1)'
+                    color: fillColor
                 })
             })
         ]
@@ -284,21 +258,18 @@ function DrawCircleOnLonLat(lon, lat, radius) {
 
 
 
-
-
-
 /**
  * FUNÇÕES DE GEOMETRIA
  */
 
 function clearGeomSource() {
-	console.log('clearGeomSource');
 	HighlightGeomSource.clear();
+	console.log('clearGeomSource');
 }
 
 function HighlightGeom(geom){
 	/*console.log(geom);*/
-    // HighlightGeomSource.clear();
+    /* HighlightGeomSource.clear();*/
     HighlightGeomSource.addFeatures(
         (new ol.format.GeoJSON()).readFeatures(
             geom, {
@@ -312,7 +283,7 @@ function HighlightAndFlyToGeom(geom, zoom) {
     HighlightGeom(geom);
     const centroid = turf.centroid(geom);
     const centroidproj = ol.proj.fromLonLat(centroid.geometry.coordinates);
-    flyTo(centroidproj, zoom);
+	flyTo(centroidproj, zoom);
 }
 
 
@@ -566,146 +537,6 @@ Mouse_Position = function(opt_options){
 	map.addControl(mousePositionControl);
 }
 
-
-
-
-/*
-Rua_Touch_Control = function(opt_options){
-	this.container = document.createElement('div');
-	this.container.classList.add('custom-control');
-	this.TouchRuaEnabled = false;
-	this.container.classList.add('small-ctrl');
-	this.container.classList.add('Rua-Touch-Control'); 
-	this.button = document.createElement('button');
-	this.name = 'TouchRua';
-	this.button.innerHTML = "<i class='fas fa-road fa-2x'></i>";
-	this.button.addEventListener('click', () => {
-		if(this.TouchRuaEnabled==false){
-			this.onEnable();
-		}else {
-			this.onDisable();
-		}
-	});
-	this.container.appendChild(this.button);
-
-	ol.control.Control.call(this,{
-		element:this.container
-	});
-
-	this.onEnable = function(){
-		disableOtherControls(this.name);
-		this.TouchRuaEnabled = true;
-		this.container.classList.add('small-ctrl-extend');
-		this.button.innerHTML = "Inspecionar Ruas <i class='fas fa-road fa-2x'></i>";
-		map.getViewport().style.cursor = 'crosshair';
-
-		map.on('moveend',       this.onDragUpdate);
-		map.on('pointermove',   this.onHighlightFeature);
-		map.on('singleclick',   this.onSingleClick);
-
-		this.onDragUpdate();
-	};
-
-	this.onDisable = function(){
-		this.TouchRuaEnabled = false;
-		this.button.innerHTML = "<i class='fas fa-road fa-2x'></i>";
-
-		map.getViewport().style.cursor = '';
-		this.container.classList.remove('small-ctrl-extend');
-
-		map.un('moveend',       this.onDragUpdate);
-		map.un('singleclick',   this.onSingleClick);
-		map.un('pointermove',   this.onHighlightFeature);
-
-		HighlightRuasSource.clear();
-	};
-
-	this.onDragUpdate = function(){
-		const geoserver_url = 'https://geo.jaraguadosul.sc.gov.br/gs/geoserver-hive/PMJS/wms';
-		if (map.getView().getZoom()>14) {
-			$.post(geoserver_url, {
-				service:        'WFS',
-				request:        'GetFeature',
-				typeNames:      'eixo_ruas',
-				version:        '2.0.0',
-				srsName:        'EPSG:4326',
-				outputFormat:   'application/json',bbox:map.getView().calculateExtent(map.getSize()).join(',') + ', EPSG:3857'
-			}, function(data) {
-				data = turf.buffer(data,5,{units:'metres'})
-				HighlightRuasSource.clear();
-				HighlightRuasSource.addFeatures(
-					(
-						new ol.format.GeoJSON()
-					).readFeatures(
-						data, 
-						{
-							featureProjection: 'EPSG:3857'
-						}
-					)
-				)		
-			})
-		}
-	};
-
-	this.onHighlightFeature = function(e){
-		var i;
-		var style_highlighted_rua = new ol.style.Style({
-			stroke: new ol.style.Stroke({
-				color:'#efb800',
-				lineDash: [4],
-				width:3
-			}),
-			fill: new ol.style.Fill({
-				color: 'rgba(249,252,78,0.5)'
-			})
-		})
-		for(i=0;i<HoverRuasFeatures.length;i++){
-			HoverRuasFeatures[i].setStyle(null);
-		}
-		HoverRuasFeatures = [];
-		map.forEachFeatureAtPixel(e.pixel,function(feature){
-			feature.setStyle(style_highlighted_rua);
-			HoverRuasFeatures.push(feature);
-		})
-	};
-
-	this.onSingleClick = function(e){
-		var coord       = e.coordinate;
-		var feature     = HighlightRuasSource.getFeaturesAtCoordinate(coord)[0];
-		var coordinate  = e.coordinate;
-		var el          = document.createElement('div');
-		var content     = document.createElement('div');
-		el.appendChild(content);
-		content.appendChild(getLoader());
-		//console.log(feature);
-		var chave       = feature.getProperties().chave
-		var i_ruas      = parseInt(feature.getProperties().chave.match(/\d/g).join(''));;
-		//console.log(i_ruas);
-		//=============================
-		$.ajax({
-			url: 'engine.php',
-			crossDomain: true,
-			data:{
-				class:		'GeoMapView',
-				method:		'getRuaPopUp',
-				RUA_I_RUAS:	i_ruas,
-				static:1
-			}
-		}).done(function(data){
-			$(content).html(data);
-			Imov_Popup.getElement().addEventListener('click', function(e) {
-				if($(e.target).attr('data-toggle')=='tab'){
-					$(e.target).tab('show');
-				}
-			}, false);
-
-		});
-		Imov_Popup.show(coordinate, el)
-		==============================//
-	}
-}
-*/
-
 Imov_Touch_Control  = function(opt_options){
 	this.TouchImovEnabled = false;
 	this.container  = document.createElement('div');
@@ -928,17 +759,175 @@ function disableOtherControls(controltokeep){
 
 
 
+function refreshHeatmap() {
+	var geometry, extent, source, features;
+	source = vectorLayer.getSource();
+	features = source.getFeaturesInExtent(map.getView().calculateExtent());
+	heatmapSource.clear();
+	for (var i = 0; i < features.length; i++) {
+		geometry = features[i].getGeometry();
+		/*if ((geometry.getType() == 'Point') && (features[i].get('layer').substring(0, 4) == 'City')  && features[i].get('_name_en') )  {*/
+			extent = geometry.getExtent();
+			heatmapSource.addFeature(new ol.Feature({geometry: new ol.geom.Point([extent[0], extent[1]])}));
+		/*}*/
+	}
+}
+
 
 /*
-var sourceFeatures = new ol.source.Vector();
-var layerFeatures  = new ol.layer.Vector({source: sourceFeatures});
+function addHeatmapMarker(Markers) {
+	var item = Markers;
+	var longitude = item.lng;
+	var latitude = item.lat;
+	
+	heatmapMarkers.push([longitude, latitude]);
+}
 */
 
-/*
-var vectorLayer;
-var features = [];
-*/
 
+/**
+ * clearHeatmap
+ */
+function clearHeatmap() {
+	console.log('clearHeatmap');
+	
+	map.getLayers()
+		.getArray()
+		.filter(layer => layer.get('name') === 'HeatmapMarker')
+		.forEach(function(layer) {
+			var source = layer.getSource();
+			map.removeLayer(layer);
+		}
+	);	
+}
+
+
+/**
+ * animateHeatmap
+ * @param {*} heatmapData Array of Objects
+ */
+function animateHeatmap(heatmapData) {
+	console.log('animateHeatmap');
+	console.log(heatmapData);
+
+	/* Dados de exemplo (coordenadas e intensidade do heatmap ao longo do tempo) */
+	/*
+	var heatmapData = [
+		{ lon: -75.1698, lat: 39.9526, value: 0.5, time: new Date("2023-11-23T08:00:00") },
+		{ lon: -75.1698, lat: 39.9526, value: 0.8, time: new Date("2023-11-23T12:00:00") },
+	];
+	*/
+
+	/* Crie uma fonte de dados de vetor */
+	var vectorSource = new ol.source.Vector();
+
+	/* Adicione os pontos ao vetor de fonte de dados */
+	heatmapData.forEach(function(data) {
+		var point = new ol.geom.Point(ol.proj.fromLonLat([data.lon, data.lat]));
+		var feature = new ol.Feature(point);
+		feature.setProperties({ value: data.value, time: data.time });
+		vectorSource.addFeature(feature);
+	});
+
+	/* Crie a camada de vetor com a fonte de dados */
+	var vectorLayer = new ol.layer.Vector({
+		source: vectorSource,
+		style: function(feature) {	
+			/* Estilo do ponto de acordo com a intensidade do heatmap */
+			var value = feature.get('value');
+			var radius = value * 20; /* Ajuste conforme necessário */
+
+			return new ol.style.Style({
+				image: new ol.style.Circle({
+					radius: radius,
+					fill: new ol.style.Fill({ color: 'rgba(255, 0, 0, ' + value + ')' }),
+					stroke: new ol.style.Stroke({ color: 'rgba(255, 0, 0, 0.5)', width: 1 })
+				}),
+			});
+		}
+	});
+
+	/* Crie o mapa */
+	/*
+	var map = new ol.Map({
+		target: 'map',
+		layers: [
+			new ol.layer.Tile({
+				source: new ol.source.OSM()
+			}),
+			vectorLayer
+		],
+		view: new ol.View({
+			center: ol.proj.fromLonLat([-75.1698, 39.9526]),
+			zoom: 12
+		})
+	});
+	*/
+
+	/* Função para animar o heatmap */
+	function animate() {
+		vectorSource.getFeatures().forEach(function(feature) {
+			var currentTime = new Date();
+			var timeDiff = currentTime - feature.get('time');
+			var animationValue = Math.abs(Math.sin(timeDiff / 10000)); /* Ajuste conforme necessário */
+			feature.set('value', animationValue);
+		});
+
+		/* Atualize o mapa */
+		vectorSource.changed();
+
+		/* Agende a próxima animação */
+		setTimeout(animate, 100);
+	}
+
+	/* Inicie a animação */
+	animate();	
+}
+
+/**
+ * displayHeatmap
+ * @param {*} heatmapMarkers Array of coordinates (E.g.: [[53.50119612705815, -1.1270833894501477], [53.34474, -3.01101]])
+ */
+function displayHeatmap(heatmapMarkers) {
+	console.log('displayHeatmap');
+	console.log(heatmapMarkers);
+
+	map.getLayers()
+		.getArray()
+		.filter(layer => layer.get('name') === 'HeatmapMarker')
+		.forEach(function(layer) {
+			/* var source = layer.getSource(); */
+			console.log(layer);
+			map.removeLayer(layer);
+		}
+	);
+
+	var heatmapSource = new ol.source.Vector({
+		name: 'HeatmapMarker'	
+	});
+      
+    var heatmapLayer = new ol.layer.Heatmap({
+        source: heatmapSource,
+        weight: function(feature) {
+          return(0.8);
+        }
+    });
+
+	heatmapSource.addFeature(
+		new ol.Feature({
+			geometry: new ol.geom.MultiPoint(heatmapMarkers).transform('EPSG:4326', 'EPSG:3857')
+		})
+	);
+	map.addLayer(heatmapLayer);
+
+}
+
+
+
+/**
+ * addPin
+ * @param {*} Markers 
+ */
 function addPin(Markers) {
 
 	map.getLayers()
@@ -953,7 +942,9 @@ function addPin(Markers) {
 	var item = Markers;
 	var longitude = item.lng;
 	var latitude  = item.lat;
-	var label  	  = item.label;
+	var label 	  = item.label;
+	item.icon     = null ?? 'vendor/marcelonees/plugins/src/OpenLayers/marker-icon.png';
+	var icon 	  = item.icon;
 
 	var iconFeature = new ol.Feature({
 		geometry: new ol.geom.Point(
@@ -970,7 +961,7 @@ function addPin(Markers) {
 		image: new ol.style.Icon(
 			{
 				anchor: [0.5, 1],
-				src: "vendor/marcelonees/plugins/src/OpenLayers/marker-icon.png",
+				src: icon,
 				scale: 0.5
 			}
 		)
@@ -1013,13 +1004,17 @@ function addPin(Markers) {
 
 
 /**
- * 
- * Quando há um click no mapa
+ * onMapClick
+ * @param {*} e 
  */
 function onMapClick(e) {
 
-	/*console.log(e);*/
-	
+	const requestURL = e.b.view.Adianti.requestURL;
+	const control = requestURL.replace(/^engine.php\?class=/g, '').replace(/&.+/g, '');
+
+	console.log('control');
+	console.log(control);
+
 	lon = e.coordinate[0];
 	lat = e.coordinate[1];
 
@@ -1032,108 +1027,127 @@ function onMapClick(e) {
 	var lon = lonlat[0];
 	var lat = lonlat[1];
 
+	/* TODO - Usar apenas na tela de RG? */
+	/*
+			if (document.getElementById("lat")) {
+				document.getElementById("lat").value = lat;
+			}
+	
+			if (document.getElementById("lon")) {
+				document.getElementById("lon").value = lon;
+			}
+	*/
 
-	/*console.log(lonlat);*/
-	/*DrawCircleOnLonLat(lonlat[0], lonlat[1], 300);*/
+	var f = map.forEachFeatureAtPixel(e.pixel, function (ft, layer) {
+		
+		/*
+		console.log('layer');
+		console.log(layer);
+		
+		*/
+		console.log('ft');
+		console.log(ft);		
 
-	var f = map.forEachFeatureAtPixel(
-		e.pixel,
-		function(ft, layer){
-			
-			/*console.log(layer);*/
-			console.log(ft);
+		/*
+		var polygonGeometry = e.feature.getGeometry();
+		var coords = iconFeature.getGeometry().getCoordinates();
+		polygonGeometry.intersectsCoordinate(coords)
+		*/
+		var coordinate  = ol.proj.toLonLat(e.coordinate,'EPSG:3857');
+		var el          = document.createElement('div');
+		var content     = document.createElement('div');
+		el.appendChild(content);
+		content.appendChild(getLoader());
+
+		/* Qual Form do Adianti está chamando essa função? */
+		/*console.log('antes');*/
+		/*control = ft.geometryChangeKey_.bindTo.values_.control;*/
+		/*
+		console.log('depois');
+		*/
+
+		console.log('control');
+		console.log(control);
+
+		if (control == 'VigEpiMinhasAtividades') {				
+			/*
+			programacao_id 		  = ft.geometryChangeKey_.bindTo.values_.programacao_id;
+			lote_id 			  = ft.geometryChangeKey_.bindTo.values_.lote_id;
+			inscricao_imobiliaria = ft.geometryChangeKey_.bindTo.values_.inscricao_imobiliaria;
+
+			console.log('VigEpiMinhasAtividades: ' + inscricao_imobiliaria);
+			__adianti_ajax_exec('class=VigEpiMinhasAtividades&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0]+'&programacao_id='+programacao_id+'&inscricao_imobiliaria='+inscricao_imobiliaria,
+				function(data){
+					$(content).html(data);
+	
+					Imov_Popup.getElement().addEventListener('click', function(e) {
+						if($(e.target).attr('data-toggle')=='tab'){
+							$(e.target).tab('show');
+						}
+					}, false);
+				}, false
+			);
+			Imov_Popup.show(e.coordinate, el);
+			*/
+		} else
+			/* ft.geometryChangeKey_.bindTo.values_.chave */
+		if (ft.geometryChangeKey_?.bindTo?.values_?.chave === 'undefined'){
+
+			if (document.getElementById("lat")) {
+				document.getElementById("lat").value = lat;
+			}
+	
+			if (document.getElementById("lon")) {
+				document.getElementById("lon").value = lon;
+			}
+
+			var Markers = {
+				lat: lat, 
+				lng: lon
+			};
+
+			addPin(Markers);
+
+		} else {
+
+			/* TODO - Usar apenas na tela de RG? */
+			if (document.getElementById("lat")) {
+				document.getElementById("lat").value = lat;
+			}
+	
+			if (document.getElementById("lon")) {
+				document.getElementById("lon").value = lon;
+			}
 
 			/*
-			var polygonGeometry = e.feature.getGeometry();
-			var coords = iconFeature.getGeometry().getCoordinates();
-			polygonGeometry.intersectsCoordinate(coords)
-			*/
 			var coordinate  = ol.proj.toLonLat(e.coordinate,'EPSG:3857');
 			var el          = document.createElement('div');
 			var content     = document.createElement('div');
 			el.appendChild(content);
 			content.appendChild(getLoader());
-
-			/* Qual Form do Adianti está chamando essa função? */
-			control = ft.geometryChangeKey_.bindTo.values_.control;
-
-			if (control == 'VigEpiMinhasAtividades') {				
-				programacao_id 		  = ft.geometryChangeKey_.bindTo.values_.programacao_id;
-				lote_id 			  = ft.geometryChangeKey_.bindTo.values_.lote_id;
-				inscricao_imobiliaria = ft.geometryChangeKey_.bindTo.values_.inscricao_imobiliaria;
-
-				console.log('VigEpiMinhasAtividades: ' + inscricao_imobiliaria);
-				/* __adianti_ajax_exec('class=VigEpiMinhasAtividades&method=generatePopupStructure&programacao_id='+programacao_id&'&lat='+coordinate[1]+'&lng='+coordinate[0]+'&inscricao_imobiliaria='+inscricao_imobiliaria,*/
-				__adianti_ajax_exec('class=VigEpiMinhasAtividades&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0]+'&programacao_id='+programacao_id+'&inscricao_imobiliaria='+inscricao_imobiliaria,
-					function(data){
-						$(content).html(data);
-		
-						Imov_Popup.getElement().addEventListener('click', function(e) {
-							if($(e.target).attr('data-toggle')=='tab'){
-								$(e.target).tab('show');
-							}
-						}, false);
-					}, false
-				);
-				Imov_Popup.show(e.coordinate, el);
-			}
-			else
-			if (!ft.geometryChangeKey_.bindTo.values_.chave) {
-
-				if (document.getElementById("lat")) {
-					document.getElementById("lat").value = lat;
-				}
-		
-				if (document.getElementById("lon")) {
-					document.getElementById("lon").value = lon;
-				}
-
-				var Markers = {
-					lat: lat, 
-					lng: lon
-				};
-
-				addPin(Markers);
-
-			} else {
-
-				/* TODO - Usar apenas na tela de RG? */
-				if (document.getElementById("lat")) {
-					document.getElementById("lat").value = lat;
-				}
-		
-				if (document.getElementById("lon")) {
-					document.getElementById("lon").value = lon;
-				}
-
-				/*
-				var coordinate  = ol.proj.toLonLat(e.coordinate,'EPSG:3857');
-				var el          = document.createElement('div');
-				var content     = document.createElement('div');
-				el.appendChild(content);
-				content.appendChild(getLoader());
-				*/
-		
-				__adianti_ajax_exec('class=VigEpiReconhecimentoGeograficoForm&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0],
-					function(data){
-		
-						$(content).html(data);
-		
-						Imov_Popup.getElement().addEventListener('click', function(e) {
-							if($(e.target).attr('data-toggle')=='tab'){
-								$(e.target).tab('show');
-							}
-						}, false);
-					}, false
-				);
-
-				Imov_Popup.show(e.coordinate, el);
-			}
-			
-			return ft;
-		}
-	);
+			*/
 	
+			__adianti_ajax_exec('class=VigEpiReconhecimentoGeograficoForm&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0],
+				function(data){
+	
+					$(content).html(data);
+	
+					Imov_Popup.getElement().addEventListener('click', function(e) {
+						if($(e.target).attr('data-toggle')=='tab'){
+							$(e.target).tab('show');
+						}
+					}, false);
+				}, false
+			);
+
+			Imov_Popup.show(e.coordinate, el);
+		}
+			
+		return ft;
+	});
+
+	console.log('f');
+	console.log(f);
 }
 
 map.on('click', onMapClick);
