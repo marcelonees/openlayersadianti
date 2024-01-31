@@ -9,6 +9,7 @@ use Exception;
 
 /**
  * OpenLayersMap Container
+ * @author Marcelo Barreto Nees <marcelo.linux@gmail.com>
  */
 class OpenLayersMap extends TElement
 {
@@ -23,6 +24,9 @@ class OpenLayersMap extends TElement
     private $lng = -49.0904928;
     private $lat = -26.504104;
     private $z   = 15;
+    private $heatmapMarkers = [];
+    private $heatmapData = [];
+
 
     /**
      * Class Constructor
@@ -60,28 +64,25 @@ class OpenLayersMap extends TElement
     public function createMap()
     {
         try {
-
             $javascript = (!empty($this->javascript)) ? $this->javascript : '';
 
             // Mapa
             TScript::create("
                 var map = '';
-
+                
                 var vectorLayer;
                 var features = [];               
                 var sourceFeatures;
                 var layerFeatures;
-
-                var exportPNGElement = document.getElementById('export-png');
+                var heatmapMarkers = [];
+                var heatmapData = [];
 
                 var strokeColor = 'rgba(149,31,212,1)';
                 var fillColor = 'rgba(149,31,212,0.20)';
-
-                /*var useStreetView = new Boolean(false);*/
+                
                 var useStreetView = false;
-
+                    
                 $(document).ready(function() {
-    
                     $('<link/>',{
                         rel: 'stylesheet',
                         type: 'text/css',
@@ -93,12 +94,20 @@ class OpenLayersMap extends TElement
                         type: 'text/css',
                         href: 'vendor/marcelonees/plugins/src/OpenLayers/ol-popup.css'
                     }).appendTo('head');
+                });
 
-                    $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol.js', {'crossOrigin': 'anonymous', 'crossDomain': 'true',}).done(function() {
+                    $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol.js', {'crossOrigin': 'anonymous', 'crossDomain': 'true',}).done(function(s, Status) {
+                        console.warn('ol.js: ' + Status);
+                        
+                        /*
+                        getScript('vendor/marcelonees/plugins/src/OpenLayers/olmap.js');
+                        getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js');
+                        getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js');
+                        */
 
                         $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js').done(function() {});
-
                         $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js').done(function() {});
+
 
                         lng = $this->lng;
                         lat = $this->lat;
@@ -113,6 +122,21 @@ class OpenLayersMap extends TElement
                                 crossOrigin: null
                             })
                         });
+
+
+                        /* Create a heatmap layer based on GeoJSON content */
+                        /*
+                        var heatmapLayer = new ol.layer.Heatmap({
+                            source: new ol.source.Vector({
+                                url: 'https://raw.githubusercontent.com/acanimal/thebookofopenlayers3/master/app/data/world_cities.json',
+                                projection: 'EPSG:3857',
+                                format: new ol.format.GeoJSON()
+                            }),
+                            opacity: 0.9
+                        });
+                        */
+
+                        var heatmapLayer = new ol.layer.Heatmap({});
 
                         var ortomosaico = new ol.layer.Tile({
                             source: new ol.source.XYZ({
@@ -166,7 +190,8 @@ class OpenLayersMap extends TElement
                             layers: [
                                 baseLayer, 
                                 limite_municipal, 
-                                limite_bairros /* , ortomosaico, layerFeatures, */
+                                limite_bairros 
+                                /* , ortomosaico, layerFeatures, */
                             ],
 
                             view: new ol.View({
@@ -181,8 +206,6 @@ class OpenLayersMap extends TElement
                                 [
                                     attribution,
                                     new ol.control.ScaleLine(),
-
-                                    /*new ol.control.ZoomSlider(),*/
                                     new ol.control.FullScreen()
                                 ]
                             ),
@@ -193,7 +216,6 @@ class OpenLayersMap extends TElement
                         /**
                          * Geolocalização
                          **/
-                        
                         if (useStreetView) {
 
                             var geolocation = new ol.Geolocation({
@@ -235,17 +257,47 @@ class OpenLayersMap extends TElement
                                 /*map.getView().setZoom(18);*/
                                 streetViewIconFeature.setGeometry(new ol.geom.Point(pos));
                             });
+
                         }
 
-                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/olmap.js').done(function()    {
+                        /*
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js').done(function() {});
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js').done(function() {});
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js');
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js');                        
+                        */
 
-                            $javascript
+                        
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js')
+                            .done(function( s, Status ) {
+                                console.warn( 'ol-popup.js: ' + Status );
+                            })
+                            .fail(function( jqxhr, settings, exception ) {
+                                console.warn('Something went wrong (ol-popup.js):'+exception);
+                            });
+                        
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js')
+                            .done(function( s, Status ) {
+                                console.warn( 'turf.min.js: ' + Status );
+                            })
+                            .fail(function( jqxhr, settings, exception ) {
+                                console.warn('Something went wrong (turf.min.js):'+exception);
+                            });
+                        
 
-                        });
-
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/olmap.js')
+                            .done(function( s, Status ) {
+                                console.warn( 'olmap.js: ' + Status );
+                                $javascript
+                            })
+                            .fail(function( jqxhr, settings, exception ) {
+                                console.warn('Something went wrong (olmap.js):'+exception);
+                            });
+                        
+                    })
+                    .fail(function( jqxhr, settings, exception ) {
+                        console.warn('Something went wrong (ol.js):'+exception);
                     });
-
-                });
                 
             ");
         } catch (Exception $e) {
@@ -261,17 +313,28 @@ class OpenLayersMap extends TElement
         $style = new TElement('style');
         $style->add('#' . $this->id . '{ height:' . $this->height . ';  width: ' . $this->width . '; }');
 
-        $this->createMap();
-
         $script = new TElement('script');
         $script->type = 'text/javascript';
         $script->src  = 'vendor/marcelonees/plugins/src/OpenLayers/ol.js';
+        parent::add($script);
+
+        $script = new TElement('script');
+        $script->type = 'text/javascript';
+        $script->src  = 'vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js';
+        parent::add($script);
+
+        $script = new TElement('script');
+        $script->type = 'text/javascript';
+        $script->src  = 'vendor/marcelonees/plugins/src/OpenLayers/olmap.js';
+        parent::add($script);
+
+        $this->createMap();
 
         $content = new TElement('div');
         $content->id = $this->id;
         $content->class = 'openlayers';
-
         parent::add($content);
+
         parent::show();
     }
 
@@ -345,14 +408,16 @@ class OpenLayersMap extends TElement
 
     /**
      * DrawCircleOnLonLat on the Map
-     * @param $lon      Longitude
-     * @param $lat      Latitude
-     * @param $radius   Radius ('in meters', default: 300 )
+     * @param $lon          Longitude
+     * @param $lat          Latitude
+     * @param $radius       Radius ('in meters', default: 300 )
+     * @param $strokeColor  Stroke Color (Default: 'rgba(255,15,15)')
+     * @param $fillColor    Fill Color (Default: 'rgba(255,15,15, 0.1)')
      */
-    public function DrawCircleOnLonLat($lon, $lat, $radius = 300)
+    public function DrawCircleOnLonLat($lon, $lat, $radius = 300, $strokeColor = 'rgba(255,15,15)', $fillColor = 'rgba(255,15,15, 0.1)')
     {
         try {
-            $this->javascript .= "DrawCircleOnLonLat($lon, $lat, $radius);";
+            $this->javascript .= "DrawCircleOnLonLat($lon, $lat, $radius, '$strokeColor', '$fillColor');";
             TScript::create("$this->javascript");
         } catch (Exception $e) {
             new TMessage('error', $e->getMessage());
@@ -525,7 +590,6 @@ class OpenLayersMap extends TElement
      */
     public function showPopup($text)
     {
-
         $this->javascript .= "
             
             var popup = new ol.Overlay.Popup();
@@ -562,6 +626,86 @@ class OpenLayersMap extends TElement
                 console.log('addMarker($lng, $lat, $label)');
                 var Markers = {lat: $lat, lng: $lng, label: '$label'};
                 addPin(Markers);
+            ";
+
+            TScript::create("$this->javascript");
+        }
+    }
+
+    /**
+     * addHeatmapData - Add a point on the heatmap
+     */
+    public function addHeatmapData($datetime, $lng, $lat, $intensity = '0.5')
+    {
+        if (!empty($lng) && !empty($lat)) {
+            $this->javascript .= "
+                console.log('addHeatmapData([$datetime, $lng, $lat, $intensity])');
+                heatmapData.push({ $datetime, $lng, $lat, $intensity });
+            ";
+
+            $this->heatmapData[] = [$datetime, $lng, $lat, $intensity];
+            TScript::create("$this->javascript");
+        }
+    }
+
+    /**
+     * addHeatmapMarker - Add a point on the heatmap
+     */
+    public function addHeatmapMarker($lng, $lat)
+    {
+        if (!empty($lng) && !empty($lat)) {
+            $this->javascript .= "
+                console.log('addHeatmapMarker([$lng, $lat])');
+                heatmapMarkers.push([$lng, $lat]);
+            ";
+
+            $this->heatmapMarkers[] = [$lng, $lat];
+            TScript::create("$this->javascript");
+        }
+    }
+
+    /**
+     * displayHeatmap - display a point on the heatmap
+     */
+    public function displayHeatmap()
+    {
+        if (!empty($this->heatmapMarkers)) {
+
+            $heatmapMarkers = json_encode($this->heatmapMarkers);
+            $heatmapMarkers = str_replace('"', '', $heatmapMarkers);
+
+            $this->javascript .= "
+                console.log('displayHeatmap($heatmapMarkers)');
+                displayHeatmap($heatmapMarkers);
+            ";
+
+            TScript::create("$this->javascript");
+        }
+    }
+
+
+    /**
+     * animateHeatmap - animate a point on the heatmap
+     */
+    public function animateHeatmap()
+    {
+        if (!empty($this->heatmapData)) {
+
+            // $heatmapData = json_encode($this->heatmapData);
+            // $heatmapData = str_replace('"', '', $heatmapData);
+
+            foreach ($this->heatmapData as $hm) {
+                $heatmapData[] = "{ time: new Date('$hm->created_at'), lon: $hm->lon, lat: $hm->lat, value: $hm->intensity }, ";
+            }
+
+            // $heatmapData = '[
+            //     { lon: -75.1698, lat: 39.9526, value: 0.5, time: new Date("2023-11-23T08:00:00") },
+            //     { lon: -75.1698, lat: 39.9526, value: 0.8, time: new Date("2023-11-23T12:00:00") },
+            // ]';
+
+            $this->javascript .= "
+                console.log('animateHeatmap($heatmapData)');
+                animateHeatmap($heatmapData);
             ";
 
             TScript::create("$this->javascript");
