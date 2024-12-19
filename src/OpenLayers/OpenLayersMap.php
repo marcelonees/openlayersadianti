@@ -15,6 +15,10 @@ class OpenLayersMap extends TElement
 {
     protected $javascript;
 
+    private $id;
+    private $height;
+    private $width;
+
     /*
     private $height = '500px'; 
     private $width  = '500px';
@@ -68,46 +72,44 @@ class OpenLayersMap extends TElement
 
             // Mapa
             TScript::create("
-                var map = '';
-                
-                var vectorLayer;
-                var features = [];               
-                var sourceFeatures;
-                var layerFeatures;
-                var heatmapMarkers = [];
-                var heatmapData = [];
 
-                var strokeColor = 'rgba(149,31,212,1)';
-                var fillColor = 'rgba(149,31,212,0.20)';
                 
-                var useStreetView = false;
+                    var map;
+
+                    var vectorLayer;
+                    var features = [];               
+                    var sourceFeatures;
+                    var layerFeatures;
+                    var heatmapMarkers = [];
+                    var heatmapData = [];
+                    var CustomControls;
+                    function loadSidebarInfo (chave) {};
+
+                    var strokeColor = 'rgba(149,31,212,1)';
+                    var fillColor = 'rgba(149,31,212,0.20)';
                     
-                $(document).ready(function() {
-                    $('<link/>',{
-                        rel: 'stylesheet',
-                        type: 'text/css',
-                        href: 'vendor/marcelonees/plugins/src/OpenLayers/ol.css'
-                    }).appendTo('head');
+                    var useStreetView = false;
+                        
+                    $(document).ready(function() {
+                        $('<link/>',{
+                            rel: 'stylesheet',
+                            type: 'text/css',
+                            href: 'vendor/marcelonees/plugins/src/OpenLayers/ol.css'
+                        }).appendTo('head');
 
-                    $('<link/>',{
-                        rel: 'stylesheet',
-                        type: 'text/css',
-                        href: 'vendor/marcelonees/plugins/src/OpenLayers/ol-popup.css'
-                    }).appendTo('head');
-                });
+                        $('<link/>',{
+                            rel: 'stylesheet',
+                            type: 'text/css',
+                            href: 'vendor/marcelonees/plugins/src/OpenLayers/ol-popup.css'
+                        }).appendTo('head');
+
+
+
+                        
+                    });
 
                     $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol.js', {'crossOrigin': 'anonymous', 'crossDomain': 'true',}).done(function(s, Status) {
-                        console.warn('ol.js: ' + Status);
-                        
-                        /*
-                        getScript('vendor/marcelonees/plugins/src/OpenLayers/olmap.js');
-                        getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js');
-                        getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js');
-                        */
-
-                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js').done(function() {});
-                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js').done(function() {});
-
+                        console.warn('OpenLayersMap.php - ol.js - Status: ' + Status);
 
                         lng = $this->lng;
                         lat = $this->lat;
@@ -178,7 +180,8 @@ class OpenLayersMap extends TElement
                                 serverType: 'geoserver',
                                 crossOrigin: 'anonymous'
                             })
-                        });                      
+                        });
+
 
                         map = new ol.Map({
                             target: $this->id,
@@ -212,6 +215,7 @@ class OpenLayersMap extends TElement
 
                             multiWorld: true,
                         });
+                        
 
                         /**
                          * Geolocalização
@@ -260,34 +264,12 @@ class OpenLayersMap extends TElement
 
                         }
 
-                        /*
-                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js').done(function() {});
-                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js').done(function() {});
-                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js');
                         $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js');                        
-                        */
-
+                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js');
                         
-                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js')
-                            .done(function( s, Status ) {
-                                console.warn( 'ol-popup.js: ' + Status );
-                            })
-                            .fail(function( jqxhr, settings, exception ) {
-                                console.warn('Something went wrong (ol-popup.js):'+exception);
-                            });
-                        
-                        $.getScript('vendor/marcelonees/plugins/src/OpenLayers/turf.min.js')
-                            .done(function( s, Status ) {
-                                console.warn( 'turf.min.js: ' + Status );
-                            })
-                            .fail(function( jqxhr, settings, exception ) {
-                                console.warn('Something went wrong (turf.min.js):'+exception);
-                            });
-                        
-
                         $.getScript('vendor/marcelonees/plugins/src/OpenLayers/olmap.js')
                             .done(function( s, Status ) {
-                                console.warn( 'olmap.js: ' + Status );
+                                console.warn('$.getScript(vendor/marcelonees/plugins/src/OpenLayers/olmap.js): ' + Status );
                                 $javascript
                             })
                             .fail(function( jqxhr, settings, exception ) {
@@ -313,25 +295,10 @@ class OpenLayersMap extends TElement
         $style = new TElement('style');
         $style->add('#' . $this->id . '{ height:' . $this->height . ';  width: ' . $this->width . '; }');
 
-        $script = new TElement('script');
-        $script->type = 'text/javascript';
-        $script->src  = 'vendor/marcelonees/plugins/src/OpenLayers/ol.js';
-        parent::add($script);
-
-        $script = new TElement('script');
-        $script->type = 'text/javascript';
-        $script->src  = 'vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js';
-        parent::add($script);
-
-        $script = new TElement('script');
-        $script->type = 'text/javascript';
-        $script->src  = 'vendor/marcelonees/plugins/src/OpenLayers/olmap.js';
-        parent::add($script);
-
         $this->createMap();
 
-        $content = new TElement('div');
-        $content->id = $this->id;
+        $content        = new TElement('div');
+        $content->id    = $this->id;
         $content->class = 'openlayers';
         parent::add($content);
 
@@ -446,8 +413,10 @@ class OpenLayersMap extends TElement
     public function clearGeomSource()
     {
         try {
-            $this->javascript .= "clearGeomSource();";
-            TScript::create("$this->javascript");
+            if ($this->id) {
+                $this->javascript .= "clearGeomSource();";
+                TScript::create("$this->javascript");
+            }
         } catch (Exception $e) {
             new TMessage('error', $e->getMessage());
         }
@@ -621,14 +590,16 @@ class OpenLayersMap extends TElement
      */
     public function addMarker($lng, $lat, $label = '')
     {
-        if (!empty($lng) && !empty($lat)) {
-            $this->javascript .= "
-                console.log('addMarker($lng, $lat, $label)');
-                var Markers = {lat: $lat, lng: $lng, label: '$label'};
-                addPin(Markers);
-            ";
+        if ($this->id) {
+            if (!empty($lng) && !empty($lat)) {
+                $this->javascript .= "
+                    console.log('addMarker($lng, $lat, $label)');
+                    var Markers = {lat: $lat, lng: $lng, label: '$label'};
+                    addPin(Markers);
+                ";
 
-            TScript::create("$this->javascript");
+                TScript::create("$this->javascript");
+            }
         }
     }
 
