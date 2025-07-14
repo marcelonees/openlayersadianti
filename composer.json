@@ -1,9 +1,8 @@
 {
     "name": "marcelonees/plugins",
-    "description": "OpenLayers Map Widget for Adianti Framework",
+    "description": "Plugins for Adianti Framework",
     "type": "library",
     "license": "MIT",
-    "version": "1.0.0",
     "authors": [
         {
             "name": "Marcelo Barreto Nees",
