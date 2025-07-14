@@ -1,1208 +1,1232 @@
-if (typeof map == "object") {
-  /**
-   *  Mapa já foi criado em OpenLayersMap.php
-   */
+/**
+ * OpenLayers Map Manager - 1.2
+ *
+ * Autor: Marcelo Barreto Nees
+ * Data: 2023-10-01
+ * Descrição: Gerenciador de mapas OpenLayers com suporte a eventos, camadas e
+ * funcionalidades avançadas como destaque de feições, popups e controle de atividades.
+ * Licença: MIT
+ * Dependências: OpenLayers, Turf.js
+ */
 
-  console.log(
-    "vendor/marcelonees/plugins/src/OpenLayers/olmap.js: map == object"
-  );
+(function () {
+    const requiredLibs = {
+        ol: () => typeof ol !== "undefined",
+        turf: () => typeof turf !== "undefined",
+        Popup: () => typeof Popup !== "undefined",
+    };
 
-  console.log(
-    "vendor/marcelonees/plugins/src/OpenLayers/olmap.js: typeof map: ",
-    typeof map
-  );
+    const missingLibs = Object.entries(requiredLibs)
+        .filter(([_, check]) => !check())
+        .map(([name, _]) => name);
 
-  var geoserver_url =
-    "https://geo.jaraguadosul.sc.gov.br/gs/geoserver-hive/PMJS/wms?";
+    if (missingLibs.length > 0) {
+        const errorMsg = `Falha ao carregar dependências: ${missingLibs.join(
+            ", "
+        )}`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+    }
 
-  var view = map.getView();
-
-  view.animate({
-    center: ol.proj.fromLonLat([lng, lat]),
-    zoom: 14,
-  });
-
-  /**
-   * SETA VARIAVEIS DE MAPA
-   */
-
-  /**
-   * VARIAVEIS DA INSPEÇÃO DE IMOVEIS
-   */
-
-  var HoverImoveisFeatures = [];
-
-  var HighlightImoveisSource = new ol.source.Vector({
-    format: new ol.format.GeoJSON(),
-  });
-
-  var HighlightImoveisLayer = new ol.layer.Vector({
-    source: HighlightImoveisSource,
-    style: new ol.style.Style({
-      stroke: new ol.style.Stroke({
-        color: "rgba(0,0,0,0)",
-        width: 1,
-      }),
-      fill: new ol.style.Fill({
-        color: "rgba(0,0,0,0)",
-      }),
-    }),
-  });
-
-  HighlightImoveisLayer.setZIndex(7);
-  map.addLayer(HighlightImoveisLayer);
-
-  /**
-   * CRIA FUNÇÃO PARA LIMPAR OVERLAYS MAS MANTER ALGUNS ESPECÍFICOS
-   */
-
-  var Imov_Popup = new Popup({ width: "350px" });
-  map.addOverlay(Imov_Popup);
-
-  function limparOverlays() {
-    /*map.getOverlays().clear();*/
-    map.addOverlay(Imov_Popup);
-  }
-
-  /**
-   * CAMADA DE HIGHLIGHT DE POLÍGONOS
-   */
-  var HighlightGeomSource = new ol.source.Vector({
-    format: new ol.format.GeoJSON(),
-  });
-
-  var HighlightGeomStyle = new ol.style.Style({
-    stroke: new ol.style.Stroke({
-      color: strokeColor,
-      width: 3,
-    }),
-    fill: new ol.style.Fill({
-      color: fillColor,
-    }),
-  });
-
-  var HighlightGeomLayer = new ol.layer.Vector({
-    source: HighlightGeomSource,
-    style: (function () {
-      var stroke = new ol.style.Stroke({
-        color: "black",
-        width: 5,
-      });
-
-      var textStroke = new ol.style.Stroke({
-        color: "#fff",
-        width: 3,
-      });
-
-      var textFill = new ol.style.Fill({
-        color: "#000",
-      });
-
-      return function (feature, resolution) {
-        control = feature.get("control");
-        /*console.log(control);*/
-
-        /**
-         * Atividades tem cores diferentes, conforme seu Status
-         */
-        if (control == "VigEpiMinhasAtividades") {
-          logradouro = feature.get("logradouro");
-          logradouro_num = feature.get("logradouro_num");
-          bairro = feature.get("bairro");
-          quarteirao = feature.get("quarteirao");
-          text = logradouro_num;
-
-          textStyle = new ol.style.Text({
-            font: "10px Calibri,sans-serif",
-            text: text,
-            fill: textFill,
-            stroke: textStroke,
-          });
-
-          classe = feature.get("class");
-
-          switch (classe) {
-            case "A":
-              /* code block */
-              return new ol.style.Style({
-                stroke: new ol.style.Stroke({ color: "black", width: 1 }),
-                fill: new ol.style.Fill({ color: "rgba(87,213,87,1)" }),
-                text: textStyle,
-              });
-              break;
-            case "I":
-              /* code block */
-              return new ol.style.Style({
-                stroke: new ol.style.Stroke({ color: "black", width: 1 }),
-                fill: new ol.style.Fill({ color: "rgba(204,229,255,1)" }),
-                text: textStyle,
-              });
-              break;
-            case "F":
-              /* code block */
-              return new ol.style.Style({
-                stroke: new ol.style.Stroke({ color: "black", width: 1 }),
-                fill: new ol.style.Fill({ color: "rgba(226,227,229,1)" }),
-                text: textStyle,
-              });
-              break;
-            default:
-              /* code block */
-              return new ol.style.Style({
-                stroke: new ol.style.Stroke({ color: "black", width: 1 }),
-                fill: new ol.style.Fill({ color: "rgba(244,67,54,1)" }),
-                text: textStyle,
-              });
-          }
-        } else {
-          /**
-           * Outras telas
-           */
-          return new ol.style.Style({
-            stroke: new ol.style.Stroke({ color: "black", width: 1 }),
-            fill: new ol.style.Fill({ color: "rgba(44,88,55,0.4)" }),
-            text: new ol.style.Text({
-              font: "10px Calibri,sans-serif",
-              /*text: text,*/
-              fill: textFill,
-              stroke: textStroke,
-            }),
-          });
+    /* Módulo Principal */
+    var GeoMapApp = (function () {
+        /* Verifica se OpenLayers está carregado */
+        if (typeof ol === "undefined") {
+            console.error("OpenLayers não está carregado!");
+            return null;
         }
-      };
-    })(),
-  });
 
-  HighlightGeomLayer.setZIndex(7);
-  map.addLayer(HighlightGeomLayer);
-
-  function configStroke(strokeColor, fillColor) {
-    HighlightGeomLayer.setStyle([
-      new ol.style.Style({
-        stroke: new ol.style.Stroke({
-          color: strokeColor,
-          width: 3,
-        }),
-        fill: new ol.style.Fill({
-          color: fillColor,
-        }),
-      }),
-    ]);
-  }
-
-  /**
-   * addLayer
-   */
-  function addLayer(
-    layerName,
-    sourceType = "OSM",
-    attributions = NULL,
-    sourceUrl = NULL,
-    minZoom = 8,
-    maxZoom = 19
-  ) {
-    console.log("função addLayer");
-    /*
-		console.log(layerName, sourceType, attributions, sourceUrl, minZoom, maxZoom);
-		console.log('layerName, sourceType, attributions, sourceUrl, minZoom, maxZoom');
-		*/
-
-    /*
-		var layerName = new ol.layer.Tile({
-			source: new ol.source.XYZ({
-				attributions: + '\'' + attributions + '\'',
-				url:          + '\'' + sourceUrl    + '\'',
-				minZoom:      + '\'' + minZoom      + '\'',
-				maxZoom:      + '\'' + maxZoom      + '\''
-			})
-		});    
-
-		map.addLayer(layerName);
-		*/
-  }
-
-  function DrawCircleOnLonLat(
-    lon,
-    lat,
-    radius,
-    strokeColor = "rgba(255,15,15)",
-    fillColor = "rgba(255,15,15, 0.1)"
-  ) {
-    var circle = new ol.geom.Circle(
-      ol.proj.transform([lon, lat], "EPSG:4326", "EPSG:3857"),
-      radius
-    );
-
-    var CircleFeature = new ol.Feature(circle);
-
-    var vectorSource = new ol.source.Vector({
-      projection: "EPSG:4326",
-    });
-
-    vectorSource.addFeatures([CircleFeature]);
-
-    var circleLayer = new ol.layer.Vector({
-      source: vectorSource,
-      style: [
-        new ol.style.Style({
-          stroke: new ol.style.Stroke({
-            color: strokeColor,
-            width: 3,
-          }),
-          fill: new ol.style.Fill({
-            color: fillColor,
-          }),
-        }),
-      ],
-    });
-
-    map.addLayer(circleLayer);
-  }
-
-  /**
-   * FUNÇÕES DE GEOMETRIA
-   */
-
-  function clearGeomSource() {
-    HighlightGeomSource.clear();
-    console.log("clearGeomSource");
-  }
-
-  function HighlightGeom(geom) {
-    /*console.log(geom);*/
-    /* HighlightGeomSource.clear();*/
-    HighlightGeomSource.addFeatures(
-      new ol.format.GeoJSON().readFeatures(geom, {
-        featureProjection: "EPSG:3857",
-      })
-    );
-  }
-
-  function HighlightAndFlyToGeom(geom, zoom) {
-    HighlightGeom(geom);
-    const centroid = turf.centroid(geom);
-    const centroidproj = ol.proj.fromLonLat(centroid.geometry.coordinates);
-    flyTo(centroidproj, zoom);
-  }
-
-  function centroidOfGeom(geom) {
-    const centroid = turf.centroid(geom);
-    lon = centroid.geometry.coordinates[0];
-    lat = centroid.geometry.coordinates[1];
-
-    if (document.getElementById("lat")) {
-      document.getElementById("lat").value = lat;
-    }
-
-    if (document.getElementById("lon")) {
-      document.getElementById("lon").value = lon;
-    }
-
-    return centroid.geometry.coordinates;
-  }
-
-  function flyTo(location, zoom = null, done) {
-    var duration = 1500;
-    var parts = 2;
-    var fitafter = false;
-
-    if (zoom == null) {
-      var ext = ol.extent.createEmpty();
-      ol.extent.extend(ext, HighlightGeomSource.getExtent());
-      zoom = 15;
-      fitafter = true;
-    }
-
-    var called = false;
-
-    function callback(complete) {
-      --parts;
-      if (called) {
-        return;
-      }
-      if (parts === 0 || !complete) {
-        called = true;
-      }
-    }
-
-    view.animate(
-      {
-        center: location,
-        duration: duration,
-      },
-      callback
-    );
-
-    view.animate(
-      {
-        zoom: zoom - 1,
-        duration: duration / 2,
-      },
-      {
-        zoom: zoom,
-        duration: duration / 2,
-      },
-      callback
-    );
-
-    if (fitafter) {
-      map.getView().fit(ext, map.getSize());
-    }
-  }
-
-  /**
-   * FUNCOES DE INTEGRAÇÃO DE CAMADAS
-   */
-
-  function addNode(node) {
-    switch (node.data.layer_type) {
-      case "wms":
-        addWMSLayer(node);
-        break;
-
-      case "raster-XYZtiles":
-        addXYZTileLayer(node);
-        break;
-
-      case "blank":
-        break;
-
-      case "vector-XYZtiles":
-        addXYZVectorLayer(node);
-        break;
-
-      default:
-    }
-  }
-
-  function removeNode(node) {
-    switch (node.data.layer_type) {
-      case "wms":
-        removeWMSLayer(node);
-        break;
-
-      case "raster-XYZtiles":
-        removeXYZTileLayer(node);
-
-      case "blank":
-        break;
-
-      case "vector-XYZtiles":
-        removeXYZVectorLayer(node);
-        break;
-
-      default:
-    }
-  }
-
-  function addWMSLayer(node) {
-    var WMSLayer = new ol.layer.Tile({
-      name: node.key,
-      source: new ol.source.TileWMS({
-        url: node.data.source_url,
-        params: {
-          layers: node.data.lyr,
-          TILED: true,
-          tiled: true,
-          TRANSPARENT: true,
-          srs: "EPGS:3857",
-          STYLES: node.data.layer_styles,
-        },
-        serverType: "geoserver",
-        crossOrigin: "anonymous",
-      }),
-    });
-    WMSLayer.setZIndex(node.data.pane);
-    map.addLayer(WMSLayer);
-  }
-
-  function removeWMSLayer(node) {
-    const layersToRemove = [];
-    map.getLayers().forEach(function (layer) {
-      if (layer.get("name") != undefined && layer.get("name") === node.key) {
-        layersToRemove.push(layer);
-      }
-    });
-    if (layersToRemove.length >= 1) {
-      map.removeLayer(layersToRemove[0]);
-    }
-  }
-
-  function addXYZTileLayer(node) {
-    var XYZTileLayer = new ol.layer.Tile({
-      name: node.key,
-      maxZoom: node.data.maxzoom || 18,
-      source: new ol.source.XYZ({
-        url: node.data.source_url,
-        crossOrigin: "anonymous",
-        maxZoom: node.data.maxzoom || 18,
-        tileSize: node.data.tileSize || 256,
-      }),
-    });
-    XYZTileLayer.setZIndex(node.data.pane);
-    map.addLayer(XYZTileLayer);
-  }
-
-  function removeXYZTileLayer(node) {
-    const layersToRemove = [];
-    map.getLayers().forEach(function (layer) {
-      if (layer.get("name") != undefined && layer.get("name") === node.key) {
-        layersToRemove.push(layer);
-      }
-    });
-    if (layersToRemove.length >= 1) {
-      map.removeLayer(layersToRemove[0]);
-    }
-  }
-
-  function addXYZVectorLayer(node) {
-    var XYZVectorLayer = new ol.layer.VectorTile({
-      name: node.key,
-      declutter: true,
-      source: new ol.source.VectorTile({
-        url: node.data.source_url,
-        format: new ol.format.MVT(),
-        crossOrigin: "anonymous",
-      }),
-    });
-    XYZVectorLayer.setZIndex(node.data.pane);
-    map.addLayer(XYZVectorLayer);
-    /*console.log(node.data.style_url);*/
-    fetch(node.data.style_url).then(function (response) {
-      response.json().then(function (glStyle) {
-        olms.stylefunction(XYZVectorLayer, glStyle, node.data.style_key);
-      });
-    });
-  }
-
-  function removeXYZVectorLayer(node) {
-    const layersToRemove = [];
-    map.getLayers().forEach(function (layer) {
-      if (layer.get("name") != undefined && layer.get("name") === node.key) {
-        layersToRemove.push(layer);
-      }
-    });
-    if (layersToRemove.length >= 1) {
-      map.removeLayer(layersToRemove[0]);
-    }
-  }
-
-  /**
-   * ANIMAÇÕES E EVENTOS
-   */
-  function getLoader() {
-    var loader_container = document.createElement("div");
-    loader_container.className = "loader-container";
-
-    var loader_div = document.createElement("div");
-    loader_div.className = "csscssload-load-frame";
-
-    for (var i = 0; i < 25; i++) {
-      var loader = document.createElement("div");
-      loader.className = "cssload-dot";
-      loader_div.appendChild(loader);
-    }
-
-    loader_container.appendChild(loader_div);
-    return loader_container;
-  }
-
-  /**
-   * CONTROLES DE MAPA
-   */
-  Mouse_Position = function (opt_options) {
-    this.container = document.createElement("div");
-    this.container.classList.add("custom-control");
-    this.container.classList.add("rectangle-medium-ctrl");
-    this.container.classList.add("Mouse-Position-Control");
-    $(this.container).attr("id", "mousepositioncontainer");
-    this.lat = 0;
-    this.lng = 0;
-    $(this.container).css("font-size", "11px");
-    ol.control.Control.call(this, {
-      element: this.container,
-    });
-
-    var mousePositionControl = new ol.control.MousePosition({
-      coordinateFormat: ol.coordinate.createStringXY(4),
-      projection: "EPSG:4326",
-      target: this.container,
-    });
-
-    map.addControl(mousePositionControl);
-  };
-
-  Imov_Touch_Control = function (opt_options) {
-    this.TouchImovEnabled = false;
-    this.container = document.createElement("div");
-    this.container.classList.add("custom-control");
-    this.container.classList.add("small-ctrl");
-    this.container.classList.add("Imov-Touch-Control");
-
-    /*
-		this.button     = document.createElement('button');
-		this.name       = 'TouchImov';
-		this.button.innerHTML = "<i class='far fa-hand-point-down fa-2x' color: #006600'></i>";
-		this.button.addEventListener('click', () => {
-			if (this.TouchImovEnabled==false) {
-				this.onEnable();
-			} else {
-				this.onDisable();
-			}
-		});
-		this.container.appendChild(this.button);
-		*/
-
-    ol.control.Control.call(this, {
-      element: this.container,
-    });
-
-    this.onEnable = function () {
-      disableOtherControls(this.name);
-      this.TouchImovEnabled = true;
-      this.container.classList.add("small-ctrl-extend");
-
-      /*this.button.innerHTML = "Inspecionar Imóvel <i class='far fa-hand-point-down fa-2x' color: #006600'></i>";*/
-
-      map.getViewport().style.cursor = "crosshair";
-
-      map.on("moveend", this.onDragUpdate);
-      map.on("pointermove", this.onHighlightFeature);
-      map.on("singleclick", this.onSingleClick);
-
-      this.onDragUpdate();
-    };
-
-    this.onDisable = function () {
-      this.TouchImovEnabled = false;
-
-      /*this.button.innerHTML = "<i class='far fa-hand-point-down fa-2x' color: #006600'></i>";*/
-
-      map.getViewport().style.cursor = "";
-      this.container.classList.remove("small-ctrl-extend");
-
-      map.un("moveend", this.onDragUpdate);
-      map.un("pointermove", this.onHighlightFeature);
-      map.un("singleclick", this.onSingleClick);
-
-      HighlightImoveisSource.clear();
-    };
-
-    this.onDragUpdate = function () {
-      const geoserver_url =
-        "https://geo.jaraguadosul.sc.gov.br/gs/geoserver-hive/PMJS/wms";
-      if (map.getView().getZoom() > 16) {
-        $.post(
-          geoserver_url,
-          {
-            service: "WFS",
-            request: "GetFeature",
-            /*typeNames:      'lim_lotes_urbanos',*/
-            typeNames: "lotes",
-            version: "2.0.0",
-            srsName: "EPSG:4326",
-            outputFormat: "application/json",
-            bbox:
-              map.getView().calculateExtent(map.getSize()).join(",") +
-              ", EPSG:3857",
-          },
-          function (data) {
-            /*HighlightImoveisSource.clear();*/
-            HighlightImoveisSource.addFeatures(
-              new ol.format.GeoJSON().readFeatures(data, {
-                featureProjection: "EPSG:3857",
-              })
-            );
-          }
-        );
-
-        /*
-				$.post(geoserver_url, {
-					service:        'WFS',
-					request:        'GetFeature',
-					typeNames:      'eixo_ferrovia',
-					version:        '2.0.0',
-					srsName:        'EPSG:4326',
-					outputFormat:   'application/json',bbox:map.getView().calculateExtent(map.getSize()).join(',') + ', EPSG:3857'
-				}, function(data) {
-					HighlightImoveisSource.clear();
-					HighlightImoveisSource.addFeatures(
-						(
-							new ol.format.GeoJSON()
-						).readFeatures(
-							data, {
-								featureProjection: 'EPSG:3857'
-							}
-						)
-					)
-				});
-				*/
-
-        /*
-				$.post(geoserver_url, {
-					service:        'WFS',
-					request:        'GetFeature',
-					typeNames:      'lim_municipal',
-					version:        '2.0.0',
-					srsName:        'EPSG:4326',
-					outputFormat:   'application/json',bbox:map.getView().calculateExtent(map.getSize()).join(',') + ', EPSG:3857'
-				}, function(data) {
-					HighlightImoveisSource.clear();
-					HighlightImoveisSource.addFeatures(
-						(
-							new ol.format.GeoJSON()
-						).readFeatures(
-							data, {
-								featureProjection: 'EPSG:3857'
-							}
-						)
-					)
-				});
-				*/
-      }
-    };
-
-    this.onHighlightFeature = function (e) {
-      var i;
-      var style_highlighted_imovel = new ol.style.Style({
-        stroke: new ol.style.Stroke({
-          color: "#efb800",
-          width: 4,
-        }),
-        fill: new ol.style.Fill({
-          color: "rgba(249,252,78,0.1)",
-        }),
-      });
-      for (i = 0; i < HoverImoveisFeatures.length; i++) {
-        /*console.log(HoverImoveisFeatures[i].get('id_'));*/
-        HoverImoveisFeatures[i].setStyle(null);
-      }
-      HoverImoveisFeatures = [];
-      map.forEachFeatureAtPixel(e.pixel, function (feature) {
-        feature.setStyle(style_highlighted_imovel);
-        HoverImoveisFeatures.push(feature);
-      });
-    };
-
-    this.onSingleClick = function (e) {
-      var coordinate = ol.proj.toLonLat(e.coordinate, "EPSG:3857");
-      var el = document.createElement("div");
-      var content = document.createElement("div");
-      el.appendChild(content);
-      content.appendChild(getLoader());
-
-      /*
-			console.log('Coordenadas: ');
-			console.log(coordinate)
-			*/
-
-      /*
-			console.log(e);
-			__adianti_ajax_exec('class=VigEpiReconhecimentoGeograficoForm&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0],
-				function(data){
-
-					$(content).html(data);
-
-					Imov_Popup.getElement().addEventListener('click', function(e) {
-						if($(e.target).attr('data-toggle')=='tab'){
-							$(e.target).tab('show');
-						}
-					}, false);
-				},false
-			);
-
-			Imov_Popup.show(e.coordinate,el)
-			*/
-    };
-  };
-
-  if (typeof CustomControls == "undefined") {
-    ol.inherits(Imov_Touch_Control, ol.control.Control);
-    /*ol.inherits(Rua_Touch_Control,  ol.control.Control);*/
-    ol.inherits(Mouse_Position, ol.control.Control);
-    /*ol.inherits(Attributions,       ol.control.Control);*/
-
-    Control_Imov_Touch = new Imov_Touch_Control();
-    /*Control_Rua_Touch      = new Rua_Touch_Control;*/
-    Control_Mouse_Position = new Mouse_Position();
-    /*Control_Attributions   = new Attributions;*/
-
-    const CustomControls = {
-      TouchImov: Control_Imov_Touch,
-      /*'TouchRua':  Control_Rua_Touch,*/
-    };
-
-    console.log(
-      "vendor/marcelonees/plugins/src/OpenLayers/olmap.js - CustomControls"
-    );
-    console.log("typeof CustomControls");
-    console.log(typeof CustomControls);
-    console.log(CustomControls);
-
-    map.addControl(Control_Imov_Touch);
-    /*map.addControl(Control_Rua_Touch);*/
-    map.addControl(Control_Mouse_Position);
-    /*map.addControl(Control_Attributions);*/
-
-    Control_Imov_Touch.onEnable();
-  }
-
-  /**
-   * DESATIVA OUTROS CONTROLES
-   */
-  function disableOtherControls(controltokeep) {
-    for (var control in CustomControls) {
-      if (control != controltokeep) {
-        CustomControls[control].onDisable();
-      }
-    }
-  }
-
-  function refreshHeatmap() {
-    var geometry, extent, source, features;
-    source = vectorLayer.getSource();
-    features = source.getFeaturesInExtent(map.getView().calculateExtent());
-    heatmapSource.clear();
-    for (var i = 0; i < features.length; i++) {
-      geometry = features[i].getGeometry();
-      /*if ((geometry.getType() == 'Point') && (features[i].get('layer').substring(0, 4) == 'City')  && features[i].get('_name_en') )  {*/
-      extent = geometry.getExtent();
-      heatmapSource.addFeature(
-        new ol.Feature({ geometry: new ol.geom.Point([extent[0], extent[1]]) })
-      );
-      /*}*/
-    }
-  }
-
-  /*
-	function addHeatmapMarker(Markers) {
-		var item = Markers;
-		var longitude = item.lng;
-		var latitude = item.lat;
-		
-		heatmapMarkers.push([longitude, latitude]);
-	}
-	*/
-
-  /**
-   * clearHeatmap
-   */
-  function clearHeatmap() {
-    console.log("clearHeatmap");
-
-    map
-      .getLayers()
-      .getArray()
-      .filter((layer) => layer.get("name") === "HeatmapMarker")
-      .forEach(function (layer) {
-        var source = layer.getSource();
-        map.removeLayer(layer);
-      });
-  }
-
-  /**
-   * animateHeatmap
-   * @param {*} heatmapData Array of Objects
-   */
-  function animateHeatmap(heatmapData) {
-    console.log("animateHeatmap");
-    console.log(heatmapData);
-
-    /* Dados de exemplo (coordenadas e intensidade do heatmap ao longo do tempo) */
-    /*
-		var heatmapData = [
-			{ lon: -75.1698, lat: 39.9526, value: 0.5, time: new Date("2023-11-23T08:00:00") },
-			{ lon: -75.1698, lat: 39.9526, value: 0.8, time: new Date("2023-11-23T12:00:00") },
-		];
-		*/
-
-    /* Crie uma fonte de dados de vetor */
-    var vectorSource = new ol.source.Vector();
-
-    /* Adicione os pontos ao vetor de fonte de dados */
-    heatmapData.forEach(function (data) {
-      var point = new ol.geom.Point(ol.proj.fromLonLat([data.lon, data.lat]));
-      var feature = new ol.Feature(point);
-      feature.setProperties({ value: data.value, time: data.time });
-      vectorSource.addFeature(feature);
-    });
-
-    /* Crie a camada de vetor com a fonte de dados */
-    var vectorLayer = new ol.layer.Vector({
-      source: vectorSource,
-      style: function (feature) {
-        /* Estilo do ponto de acordo com a intensidade do heatmap */
-        var value = feature.get("value");
-        var radius = value * 20; /* Ajuste conforme necessário */
-
-        return new ol.style.Style({
-          image: new ol.style.Circle({
-            radius: radius,
-            fill: new ol.style.Fill({
-              color: "rgba(255, 0, 0, " + value + ")",
+        /* Variáveis privadas */
+        let _map;
+        let _popup;
+        let _popupClassName;
+        let _popupMethod;
+        let _shouldUpdateCoords;
+        let _shouldAddPin;
+        let _shouldShowPopup;
+        let _highlightSource;
+        let _initialized = false;
+        let _hoverFeatures = [];
+        const _controls = {};
+        const _layers = {};
+
+        /* Estilos centralizados */
+        const _styles = {
+            highlightImovel: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: "#efb800",
+                    width: 4,
+                }),
+                fill: new ol.style.Fill({
+                    color: "rgba(249,252,78,0.1)",
+                }),
             }),
-            stroke: new ol.style.Stroke({
-              color: "rgba(255, 0, 0, 0.5)",
-              width: 1,
+            defaultMarker: new ol.style.Style({
+                image: new ol.style.Icon({
+                    anchor: [0.5, 1],
+                    src: "vendor/marcelonees/plugins/src/OpenLayers/marker-icon.png",
+                    scale: 0.5,
+                }),
             }),
-          }),
-        });
-      },
-    });
+            markerLabel: new ol.style.Style({
+                text: new ol.style.Text({
+                    font: "12px Calibri,sans-serif",
+                    overflow: true,
+                    fill: new ol.style.Fill({
+                        color: "#000",
+                    }),
+                    stroke: new ol.style.Stroke({
+                        color: "#fff",
+                        width: 3,
+                    }),
+                    offsetY: -12,
+                }),
+            }),
+            activityFeature: {
+                A: new ol.style.Style({
+                    stroke: new ol.style.Stroke({ color: "black", width: 1 }),
+                    fill: new ol.style.Fill({ color: "rgba(87,213,87,1)" }),
+                }),
+                I: new ol.style.Style({
+                    stroke: new ol.style.Stroke({ color: "black", width: 1 }),
+                    fill: new ol.style.Fill({ color: "rgba(204,229,255,1)" }),
+                }),
+                F: new ol.style.Style({
+                    stroke: new ol.style.Stroke({ color: "black", width: 1 }),
+                    fill: new ol.style.Fill({ color: "rgba(226,227,229,1)" }),
+                }),
+                default: new ol.style.Style({
+                    stroke: new ol.style.Stroke({ color: "black", width: 1 }),
+                    fill: new ol.style.Fill({ color: "rgba(244,67,54,1)" }),
+                }),
+            },
+        };
 
-    /* Crie o mapa */
-    /*
-		var map = new ol.Map({
-			target: 'map',
-			layers: [
-				new ol.layer.Tile({
-					source: new ol.source.OSM()
-				}),
-				vectorLayer
-			],
-			view: new ol.View({
-				center: ol.proj.fromLonLat([-75.1698, 39.9526]),
-				zoom: 12
-			})
-		});
-		*/
+        /* Métodos privados de inicialização */
+        function _initMap(config) {
+            if (_initialized) return;
+            _initialized = true;
 
-    /* Função para animar o heatmap */
-    function animate() {
-      vectorSource.getFeatures().forEach(function (feature) {
-        var currentTime = new Date();
-        var timeDiff = currentTime - feature.get("time");
-        var animationValue = Math.abs(
-          Math.sin(timeDiff / 10000)
-        ); /* Ajuste conforme necessário */
-        feature.set("value", animationValue);
-      });
+            console.log("_initMap - config");
+            console.log(config);
 
-      /* Atualize o mapa */
-      vectorSource.changed();
+            try {
+                _map = new ol.Map({
+                    target: config.target,
+                    layers: [
+                        /**
+                         * Se quiser deixar a camada do OpenStreetMap habilitada por
+                         * padrão, é preciso descomentar o bloco abaixo
+                         */
+                        /*
+                        new ol.layer.Tile({
+                            source: new ol.source.OSM({
+                                crossOrigin: null,
+                            }),
+                        }),
+                        */
+                    ],
+                    view: new ol.View({
+                        center: ol.proj.fromLonLat([
+                            config.center.lng,
+                            config.center.lat,
+                        ]),
+                        zoom: config.zoom,
+                    }),
+                    controls: ol.control
+                        .defaults({ attribution: false })
+                        .extend([
+                            new ol.control.ScaleLine(),
+                            new ol.control.FullScreen(),
+                        ]),
+                });
 
-      /* Agende a próxima animação */
-      setTimeout(animate, 100);
-    }
-
-    /* Inicie a animação */
-    animate();
-  }
-
-  /**
-   * displayHeatmap
-   * @param {*} heatmapMarkers Array of coordinates (E.g.: [[53.50119612705815, -1.1270833894501477], [53.34474, -3.01101]])
-   */
-  function displayHeatmap(heatmapMarkers) {
-    console.log("displayHeatmap");
-    console.log(heatmapMarkers);
-
-    map
-      .getLayers()
-      .getArray()
-      .filter((layer) => layer.get("name") === "HeatmapMarker")
-      .forEach(function (layer) {
-        /* var source = layer.getSource(); */
-        console.log(layer);
-        map.removeLayer(layer);
-      });
-
-    var heatmapSource = new ol.source.Vector({
-      name: "HeatmapMarker",
-    });
-
-    var heatmapLayer = new ol.layer.Heatmap({
-      source: heatmapSource,
-      weight: function (feature) {
-        return 0.8;
-      },
-    });
-
-    heatmapSource.addFeature(
-      new ol.Feature({
-        geometry: new ol.geom.MultiPoint(heatmapMarkers).transform(
-          "EPSG:4326",
-          "EPSG:3857"
-        ),
-      })
-    );
-    map.addLayer(heatmapLayer);
-  }
-
-  /**
-   * addPin
-   * @param {*} Markers
-   */
-  function addPin(Markers) {
-    map
-      .getLayers()
-      .getArray()
-      .filter((layer) => layer.get("name") === "VLMarker")
-      .forEach(function (layer) {
-        var source = layer.getSource();
-        map.removeLayer(layer);
-      });
-
-    var item = Markers;
-    var longitude = item.lng;
-    var latitude = item.lat;
-    var label = item.label;
-    item.icon =
-      null ?? "vendor/marcelonees/plugins/src/OpenLayers/marker-icon.png";
-    var icon = item.icon;
-
-    var iconFeature = new ol.Feature({
-      geometry: new ol.geom.Point(
-        ol.proj.transform([longitude, latitude], "EPSG:4326", "EPSG:3857")
-      ),
-      name: label,
-    });
-
-    var iconStyle = new ol.style.Style({
-      image: new ol.style.Icon({
-        anchor: [0.5, 1],
-        src: icon,
-        scale: 0.5,
-      }),
-    });
-
-    var labelStyle = new ol.style.Style({
-      text: new ol.style.Text({
-        font: "12px Calibri,sans-serif",
-        overflow: true,
-        fill: new ol.style.Fill({
-          color: "#000",
-        }),
-        stroke: new ol.style.Stroke({
-          color: "#fff",
-          width: 3,
-        }),
-        offsetY: -12,
-      }),
-    });
-
-    var style = [iconStyle, labelStyle];
-
-    iconFeature.setStyle(iconStyle);
-    features.push(iconFeature);
-
-    var vectorSource = new ol.source.Vector({
-      features: features,
-    });
-
-    vectorLayer = new ol.layer.Vector({
-      source: vectorSource,
-      name: "VLMarker",
-      style: function (feature) {
-        labelStyle.getText().setText(feature.get("name"));
-        return style;
-      },
-    });
-
-    map.addLayer(vectorLayer);
-  }
-
-  /**
-   * onMapClick
-   * @param {*} e
-   */
-  function onMapClick(e) {
-    const requestURL = e.b.view.Adianti.requestURL;
-    const control = requestURL
-      .replace(/^engine.php\?class=/g, "")
-      .replace(/&.+/g, "");
-
-    console.log("requestURL: ", requestURL);
-    console.log("control: ", control);
-    console.log("e: ", e);
-    /*console.log("e.feature: ", e.feature);*/
-    /*console.log(map.getFeaturesAtPixel);*/
-
-    var feature = map.forEachFeatureAtPixel(e.pixel, function (feature) {
-      console.log("feature: ", feature);
-      return feature;
-    });
-    console.log("feature: ", feature);
-
-    // Check if the click is inside the polygon
-    /*const coords = e.coordinate;*/
-
-    /*var polygonGeometry = e.feature.getGeometry();*/
-    var polygonGeometry = e.map.f;
-    var coords = iconFeature.getGeometry().getCoordinates();
-    const isInsidePolygon = polygonGeometry.intersectsCoordinate(coords);
-
-    if (isInsidePolygon) {
-      alert("Clique dentro do polígono!");
-    } else {
-      alert("Clique fora do polígono!");
-    }
-
-    console.log("control");
-    console.log(control);
-
-    lon = e.coordinate[0];
-    lat = e.coordinate[1];
-
-    lonlat = ol.proj.transform([lon, lat], "EPSG:3857", "EPSG:4326");
-
-    var lon = lonlat[0];
-    var lat = lonlat[1];
-
-    /* TODO - Usar apenas na tela de RG? */
-    /*
-				if (document.getElementById("lat")) {
-					document.getElementById("lat").value = lat;
-				}
-		
-				if (document.getElementById("lon")) {
-					document.getElementById("lon").value = lon;
-				}
-		*/
-
-    var f = map.forEachFeatureAtPixel(e.pixel, function (ft, layer) {
-      console.log("ft");
-      console.log(ft);
-
-      console.log("ft.N");
-      console.log(ft.N);
-
-      for (i = 0; i < ft.length; i++) {
-        console.log(ft[i]);
-      }
-
-      /*
-			console.log('layer');
-			console.log(layer);
-			
-			console.log('ft');
-			console.log(ft);		
-			*/
-
-      /*
-			var polygonGeometry = e.feature.getGeometry();
-			var coords = iconFeature.getGeometry().getCoordinates();
-			polygonGeometry.intersectsCoordinate(coords)
-			*/
-      var coordinate = ol.proj.toLonLat(e.coordinate, "EPSG:3857");
-      var el = document.createElement("div");
-      var content = document.createElement("div");
-      el.appendChild(content);
-      content.appendChild(getLoader());
-
-      /* Qual Form do Adianti está chamando essa função? */
-      /*console.log('antes');*/
-      /*control = ft.geometryChangeKey_.bindTo.values_.control;*/
-
-      /*
-			console.log('depois');
-			console.log('control: ' + control);
-
-			console.log('ft.geometryChangeKey_?.bindTo?.values_?.chave');
-			console.log(ft.geometryChangeKey_?.bindTo?.values_?.chave);
-			*/
-
-      switch (control) {
-        case "XXXCadUniImovelForm":
-          console.log("To Aqui!");
-          break;
-
-        case "VigEpiMinhasAtividades":
-          /*
-					programacao_id 		  = ft.geometryChangeKey_.bindTo.values_.programacao_id;
-					lote_id 			  = ft.geometryChangeKey_.bindTo.values_.lote_id;
-					inscricao_imobiliaria = ft.geometryChangeKey_.bindTo.values_.inscricao_imobiliaria;
-
-					console.log('VigEpiMinhasAtividades: ' + inscricao_imobiliaria);
-					__adianti_ajax_exec('class=VigEpiMinhasAtividades&method=generatePopupStructure&lat='+coordinate[1]+'&lng='+coordinate[0]+'&programacao_id='+programacao_id+'&inscricao_imobiliaria='+inscricao_imobiliaria,
-						function(data){
-							\$(content).html(data);
-			
-							Imov_Popup.getElement().addEventListener('click', function(e) {
-								if($(e.target).attr('data-toggle')=='tab')
-								{
-									\$(e.target).tab(\'show\');
-								}
-							}, false);
-						}, false
-					);
-					Imov_Popup.show(e.coordinate, el);
-			*/
-          break;
-
-        default:
-          /* ft.geometryChangeKey_.bindTo.values_.chave */
-
-          if (
-            typeof ft.geometryChangeKey_?.bindTo?.values_?.chave != "undefined"
-          ) {
-            console.log("to no default ft.geometryChangeKey_");
-            /*console.log(ft.geometryChangeKey_?.bindTo?.values_?.chave);*/
-            console.log(ft.geometryChangeKey_);
-
-            if (document.getElementById("lat")) {
-              document.getElementById("lat").value = lat;
+                _initHighlightLayer();
+                _initPopup();
+                _initControls();
+                _setupEventListeners();
+                console.log("Map initialized successfully");
+            } catch (error) {
+                console.error("Map initialization failed:", error);
             }
+        }
 
-            if (document.getElementById("lon")) {
-              document.getElementById("lon").value = lon;
-            }
+        function _setupEventListeners() {
+            if (!_map) return;
 
-            var Markers = {
-              lat: lat,
-              lng: lon,
+            console.log("_setupEventListeners - setting up");
+
+            /* Remove event listeners antigos para evitar duplicação */
+            _map.un("click", _handleMapClick);
+            _map.un("pointermove", _handlePointerMove);
+
+            /* Adiciona os listeners */
+            _map.on("click", _handleMapClick);
+            _map.on("pointermove", _handlePointerMove);
+
+            console.log("_setupEventListeners - completed");
+        }
+
+        function _initHighlightLayer() {
+            console.log("/* INICIALIZANDO CAMADA DE DESTAQUE */");
+            _highlightSource = new ol.source.Vector({
+                format: new ol.format.GeoJSON(),
+            });
+
+            /* Variáveis para armazenar o estilo personalizado */
+            let customStrokeColor = "rgb(240, 115, 12)"; /* Valor padrão */
+            let customFillColor = "rgba(224, 17, 86, 0.2)"; /* Valor padrão */
+
+            const highlightLayer = new ol.layer.Vector({
+                source: _highlightSource,
+                style: function (feature) {
+                    const isCustom = feature.get("custom");
+                    const control = feature.get("control");
+
+                    /* 1. Se for uma feature manual (custom), aplica o estilo personalizado */
+                    if (isCustom) {
+                        return new ol.style.Style({
+                            stroke: new ol.style.Stroke({
+                                color: customStrokeColor,
+                                width: 3,
+                            }),
+                            fill: new ol.style.Fill({
+                                color: customFillColor,
+                            }),
+                        });
+                    }
+
+                    /* 2. Se for uma feature de atividade */
+                    if (control === "VigEpiMinhasAtividades") {
+                        const classe = feature.get("class") || "default";
+                        return _styles.activityFeature[classe];
+                    }
+
+                    /* 3. Estilo padrão para outras features (como lotes) */
+                    return new ol.style.Style({
+                        stroke: new ol.style.Stroke({
+                            color: "rgba(255, 255, 255, 0.1)",
+                            width: 1,
+                        }),
+                        fill: new ol.style.Fill({
+                            color: "rgba(255, 255, 255, 0.1)",
+                        }),
+                    });
+                },
+            });
+
+            highlightLayer.setZIndex(7);
+            _map.addLayer(highlightLayer);
+            _layers.highlight = highlightLayer;
+
+            /* Função para atualizar o estilo personalizado */
+            window._updateHighlightStyle = function (strokeColor, fillColor) {
+                console.log("/* ATUALIZANDO ESTILO PERSONALIZADO */", {
+                    strokeColor,
+                    fillColor,
+                });
+                customStrokeColor = strokeColor;
+                customFillColor = fillColor;
+
+                /* Atualiza apenas features customizadas */
+                _highlightSource
+                    .getFeatures()
+                    .filter((f) => f.get("custom"))
+                    .forEach((f) =>
+                        f.setStyle(null)
+                    ); /* Força a reavaliação do estilo */
             };
+        }
 
-            addPin(Markers);
-          } else {
-            console.log(
-              "to no else if ft.geometryChangeKey_?.bindTo?.values_?.chave"
+        function _initPopup() {
+            console.log("_initPopup");
+            try {
+                if (typeof Popup === "undefined") {
+                    throw new Error("Popup library not loaded");
+                }
+
+                _popup = new Popup({
+                    width: "350px",
+                    positioning: "bottom-center",
+                    stopEvent: false,
+                    autoPan: true,
+                    autoPanAnimation: {
+                        duration: 250,
+                    },
+                });
+
+                /* Adiciona verificação de métodos essenciais */
+                if (typeof _popup.show !== "function") {
+                    _popup.show = function (coords, content) {
+                        this.setPosition(coords);
+                        this.setElement(content);
+                    };
+                }
+
+                _map.addOverlay(_popup);
+            } catch (e) {
+                console.error("Popup initialization failed:", e);
+                /* Fallback mais robusto */
+                _popup = new ol.Overlay({
+                    element: document.createElement("div"),
+                    autoPan: true,
+                    autoPanAnimation: {
+                        duration: 250,
+                    },
+                });
+                _popup.setPosition(undefined); // Garante que comece oculto
+                _map.addOverlay(_popup);
+
+                /* Adiciona método show para compatibilidade */
+                _popup.show = function (coords, content) {
+                    if (typeof content === "string") {
+                        this.getElement().innerHTML = content;
+                    } else {
+                        this.getElement().appendChild(content);
+                    }
+                    this.setPosition(coords);
+                };
+            }
+        }
+
+        function _initControls() {
+            console.log("_initControls");
+
+            try {
+                _controls.mousePosition = new MousePositionControl();
+                _map.addControl(_controls.mousePosition);
+
+                _controls.featureInspect = new FeatureInspectControl();
+                _map.addControl(_controls.featureInspect);
+
+                /* Ativação segura com verificação */
+                if (_map && _controls.featureInspect) {
+                    setTimeout(() => {
+                        try {
+                            _controls.featureInspect.enable();
+                        } catch (e) {
+                            console.error("Error enabling feature inspect:", e);
+                        }
+                    }, 300);
+                }
+            } catch (e) {
+                console.error("Error initializing controls:", e);
+            }
+        }
+
+        /* Métodos de manipulação de eventos */
+        function _handleMapClick(e) {
+            console.log();
+            try {
+                console.log("_handleMapClick", e);
+
+                // 1. Extrai os parâmetros da URL no formato array
+                const urlParams = new URLSearchParams(window.location.search);
+                const params = {};
+
+                // Processa parâmetros no formato 0[param]
+                urlParams.forEach((value, key) => {
+                    const match = key.match(/^(\d+)\[(.+)\]$/);
+                    if (match) {
+                        const index = match[1];
+                        const paramName = match[2];
+                        if (!params[index]) params[index] = {};
+                        params[index][paramName] = value;
+                    } else {
+                        params[key] = value;
+                    }
+                });
+                console.log("Parâmetros processados:", params);
+
+                // 2. Verifica os parâmetros específicos (considerando o primeiro conjunto [0])
+                const config = params["0"] || {};
+                console.log("config", config);
+
+                // No método _handleMapClick, você pode acessar assim:
+                const shouldUpdateCoords = _map._shouldUpdateCoords;
+                const shouldAddPin = _map._shouldAddPin;
+                const shouldShowPopup = _map._shouldShowPopup;
+                const popupClassName = _map._popupClassName;
+                const popupMethod = _map._popupMethod;
+
+                console.log("Configurações:", {
+                    shouldUpdateCoords: shouldUpdateCoords,
+                    shouldAddPin: shouldAddPin,
+                    shouldShowPopup: shouldShowPopup,
+                    popupClassName: popupClassName,
+                    popupMethod: popupMethod,
+                });
+
+                /**
+                 * Transforma as coordenadas
+                 */
+                const coordinate = _transformCoordinate(e.coordinate);
+                const feature = _getFeatureAtPixel(e.pixel);
+
+                if (!feature) {
+                    console.log("Nenhuma feature encontrada no clique");
+                    return;
+                }
+
+                const featureData = feature.values_;
+                console.log("Feature data:", featureData);
+
+                /* 3. Atualiza coordenadas se o parâmetro estiver presente */
+                if (shouldUpdateCoords) {
+                    console.log(
+                        "Atualizando coordenadas nos campos do formulário"
+                    );
+                    _updateCoordinateFields(coordinate);
+                }
+
+                /* 4. Adiciona pin se o parâmetro estiver presente */
+                if (shouldAddPin) {
+                    console.log("Adicionando marcador no mapa");
+                    _map.getLayers()
+                        .getArray()
+                        .filter((layer) => layer.get("name") === "pin")
+                        .forEach((layer) => _map.removeLayer(layer));
+
+                    _addPin(
+                        { lat: coordinate.lng, lng: coordinate.lat },
+                        false
+                    );
+                }
+
+                /**
+                 * Verifica se o parâmetro popup foi passado e se popup=true
+                 */
+                if (
+                    (shouldShowPopup || featureData.url) &&
+                    _popup &&
+                    typeof _popup.show === "function"
+                ) {
+                    /* Verificação adicional para ver se as coordenadas são válidas */
+                    if (
+                        !coordinate ||
+                        isNaN(coordinate.lat) ||
+                        isNaN(coordinate.lng)
+                    ) {
+                        console.error(
+                            "Coordenadas inválidas para popup:",
+                            coordinate
+                        );
+                        return;
+                    }
+
+                    /* Se houver URL, carrega o conteúdo via AJAX */
+                    if (featureData.url) {
+                        console.log(
+                            "Mostrando popup com URL da feature:",
+                            featureData.url
+                        );
+                        _showPopupWithLoader(coordinate, featureData.url);
+                    } else {
+                        if (featureData.control) {
+                            console.log(
+                                "Mostrando popup com controle:",
+                                featureData.control
+                            );
+
+                            _showPopupWithLoader(
+                                coordinate,
+                                `class=${featureData.control}&method=${popupMethod}` +
+                                    `&lat=${coordinate.lat}&lng=${coordinate.lng}`
+                            );
+
+                            console.log(
+                                "_showPopupWithLoader(" +
+                                    `${coordinate}, class=${featureData.control}&method=${popupMethod}&lat=${coordinate.lat}&lng=${coordinate.lng}` +
+                                    ")"
+                            );
+                        } else {
+                            console.log(
+                                "Mostrando popup com popupClassName:",
+                                popupClassName
+                            );
+
+                            _showPopupWithLoader(
+                                coordinate,
+                                `class=${popupClassName}&method=${popupMethod}` +
+                                    `&lat=${coordinate.lat}&lng=${coordinate.lng}`
+                            );
+
+                            console.log(
+                                "_showPopupWithLoader(" +
+                                    `${coordinate}, class=${popupClassName}&method=${popupMethod}&lat=${coordinate.lat}&lng=${coordinate.lng}` +
+                                    ")"
+                            );
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Error handling map click:", error);
+            }
+        }
+
+        function _handlePointerMove(e) {
+            /* console.log("_handlePointerMove"); */
+            if (!e || !e.pixel) return;
+
+            _hoverFeatures.forEach((feat) => feat.setStyle(null));
+            _hoverFeatures = [];
+
+            _map.forEachFeatureAtPixel(e.pixel, function (feature) {
+                feature.setStyle(_styles.highlightImovel);
+                _hoverFeatures.push(feature);
+            });
+
+            /* Muda o cursor quando estiver sobre uma feature */
+            /* TODO: Não está funcionando */
+            _map.getTargetElement().style.cursor =
+                _hoverFeatures.length > 0 ? "pointer" : "";
+        }
+
+        /* Métodos auxiliares */
+        function _transformCoordinate(coordinate) {
+            const lonlat = ol.proj.transform(
+                coordinate,
+                "EPSG:3857",
+                "EPSG:4326"
             );
-            console.log(ft.geometryChangeKey_?.bindTo?.values_?.chave);
+            return {
+                lat: lonlat[1],
+                lng: lonlat[0],
+            };
+        }
 
-            /* TODO - Usar apenas na tela de RG? */
-            if (document.getElementById("lat")) {
-              document.getElementById("lat").value = lat;
-            }
+        function _getFeatureAtPixel(pixel) {
+            return _map.forEachFeatureAtPixel(pixel, function (ft) {
+                return ft;
+            });
+        }
 
-            if (document.getElementById("lon")) {
-              document.getElementById("lon").value = lon;
-            }
+        function _updateCoordinateFields(coordinate) {
+            console.log("_updateCoordinateFields(coordinate):", coordinate);
+            const latField = document.getElementById("lat");
+            const lonField = document.getElementById("lon");
+
+            if (latField) latField.value = coordinate.lat;
+            if (lonField) lonField.value = coordinate.lng;
+        }
+
+        function _handleEmptyClick(coordinate) {
+            console.log("_handleEmptyClick");
+            _updateCoordinateFields(coordinate);
+            _addPin({ lat: coordinate.lat, lng: coordinate.lng });
+        }
+
+        function _handleSimpleMarkerFeature(coordinate) {
+            console.log("_handleSimpleMarkerFeature");
+            _updateCoordinateFields(coordinate);
+            _addPin({ lat: coordinate.lat, lng: coordinate.lng });
+        }
+
+        function _handleActivityFeatureClick(featureData, coordinate) {
+            console.log("_handleActivityFeatureClick");
+            const { programacao_id, inscricao_imobiliaria } = featureData;
+
+            _showPopupWithLoader(
+                coordinate,
+                `class=VigEpiMinhasAtividades&method=generatePopupStructure&lat=${coordinate.lat}` +
+                    `&lng=${coordinate.lng}&programacao_id=${programacao_id}` +
+                    `&inscricao_imobiliaria=${inscricao_imobiliaria}`
+            );
+        }
+
+        function _handleRecognitionFeatureClick(
+            coordinate,
+            className = "VigEpiReconhecimentoGeograficoForm",
+            method = "generatePopupStructure"
+        ) {
+            console.log("_handleRecognitionFeatureClick");
+            _updateCoordinateFields(coordinate);
+            _showPopupWithLoader(
+                coordinate,
+                /*`class=VigEpiReconhecimentoGeograficoForm&method=generatePopupStructure` +*/
+                `class=${className}&method=${method}` +
+                    `&lat=${coordinate.lat}&lng=${coordinate.lng}`
+            );
+        }
+
+        function _showPopupWithLoader(coordinate, ajaxParams) {
+            console.log("_showPopupWithLoader");
+            console.log("coordinate:", coordinate);
+            console.log("ajaxParams:", ajaxParams);
+
+            // Garante que as coordenadas estejam no formato esperado (EPSG:3857)
+            const mapCoords = Array.isArray(coordinate)
+                ? coordinate
+                : ol.proj.fromLonLat([coordinate.lng, coordinate.lat]);
+
+            console.log("mapCoords:", mapCoords);
+
+            // 1. Cria o container principal do popup
+            const el = document.createElement("div");
+
+            // 2. [NOVO] ADICIONE O BOTÃO DE FECHAR AQUI (debug)
+            // const closeBtn = document.createElement("button");
+            // closeBtn.innerHTML = "X";
+            // Object.assign(closeBtn.style, {
+            //     position: "absolute",
+            //     top: "5px",
+            //     right: "5px",
+            //     background: "transparent",
+            //     border: "none",
+            //     cursor: "pointer",
+            //     fontSize: "16px",
+            //     fontWeight: "bold",
+            //     color: "#999",
+            // });
+            // closeBtn.onclick = () => {
+            //     if (_popup) {
+            //         _popup.setPosition(undefined); // Remove o popup
+            //     } else {
+            //         el.remove(); // Fallback se não usar o overlay do OpenLayers
+            //     }
+            // };
+            // el.appendChild(closeBtn);
+
+            // 3. Aplica estilos diretamente ao elemento
+            // Object.assign(el.style, {
+            //     position: "absolute",
+            //     backgroundColor: "white",
+            //     boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+            //     padding: "15px",
+            //     borderRadius: "10px",
+            //     border: "1px solid #cccccc",
+            //     minWidth: "180px",
+            //     maxWidth: "450px",
+            //     zIndex: "1000",
+            //     display: "none",
+            // });
+
+            // Adiciona a seta do popup (opcional)
+            // const arrow = document.createElement("div");
+            // Object.assign(arrow.style, {
+            //     position: "absolute",
+            //     bottom: "-30px",
+            //     left: "50%",
+            //     marginLeft: "-10px",
+            //     width: "0",
+            //     height: "0",
+            //     borderLeft: "10px solid transparent",
+            //     borderRight: "10px solid transparent",
+            //     borderTop: "10px solid white",
+            // });
+            // el.appendChild(arrow);
+
+            // Cria o conteúdo do popup
+            const content = document.createElement("div");
+            Object.assign(content.style, {
+                maxHeight: "300px",
+                overflowY: "auto",
+            });
+
+            el.appendChild(content);
+            content.appendChild(_getLoader());
 
             __adianti_ajax_exec(
-              "class=VigEpiReconhecimentoGeograficoForm&method=generatePopupStructure&lat=" +
-                coordinate[1] +
-                "&lng=" +
-                coordinate[0],
-              function (data) {
-                $(content).html(data);
+                ajaxParams,
+                function (data) {
+                    $(content).html(data);
+                    _setupPopupTabs(content);
 
-                Imov_Popup.getElement().addEventListener(
-                  "click",
-                  function (e) {
-                    if ($(e.target).attr("data-toggle") == "tab") {
-                      $(e.target).tab("show");
+                    console.log("content: ", content);
+                    // Mostra o popup somente após o conteúdo ser carregado
+                    if (_popup) {
+                        try {
+                            // Verifica se é um overlay do OpenLayers padrão
+                            if (_popup.setPosition && _popup.setElement) {
+                                console.log(
+                                    "_popup.setPosition && _popup.setElement"
+                                );
+                                _popup.setPosition(mapCoords);
+                                // _popup.setElement(el);
+                            }
+                            // Se for um popup customizado com método show
+                            else if (typeof _popup.show === "function") {
+                                console.log("_popup.show(mapCoords, el);");
+                                _popup.show(mapCoords, el);
+                            }
+                        } catch (e) {
+                            console.error("Error showing popup:", e);
+                            // Fallback extremo - adiciona diretamente ao body
+                            document.body.appendChild(el);
+                            Object.assign(el.style, {
+                                position: "fixed",
+                                top: "50%",
+                                left: "50%",
+                                transform: "translate(-50%, -50%)",
+                            });
+                        }
                     }
-                  },
-                  false
-                );
-              },
-              true
+                },
+                true
             );
 
-            Imov_Popup.show(e.coordinate, el);
-          }
-          break;
-      }
+            // Adiciona temporariamente para visualização imediata
+            if (_popup) {
+                if (_popup.setPosition && _popup.setElement) {
+                    console.log("_popup.setPosition(mapCoords);");
+                    _popup.setPosition(mapCoords);
+                    _popup.setElement(el);
+                }
+            } else {
+                // Fallback caso o popup não exista
+                console.log("Fallback caso o popup não exista");
+                document.body.appendChild(el);
+            }
+        }
 
-      return ft;
-    });
-  }
+        function _setupPopupTabs(content) {
+            _popup.getElement().addEventListener(
+                "click",
+                function (e) {
+                    if ($(e.target).attr("data-toggle") === "tab") {
+                        $(e.target).tab("show");
+                    }
+                },
+                false
+            );
+        }
 
-  map.on("click", onMapClick);
-} else {
-  console.log(
-    "vendor/marcelonees/plugins/src/OpenLayers/olmap.js: map != object"
-  );
-  console.log("typeof map:", typeof map);
-}
+        function _getLoader() {
+            const loaderContainer = document.createElement("div");
+            Object.assign(loaderContainer.style, {
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                minHeight: "100px",
+            });
+
+            const loader = document.createElement("div");
+            loader.innerHTML = "Carregando...";
+            Object.assign(loader.style, {
+                fontSize: "14px",
+                color: "#333",
+            });
+
+            loaderContainer.appendChild(loader);
+            return loaderContainer;
+        }
+
+        function _addPin(marker, flyTo = true) {
+            /* Remove existing marker layer */
+            // _map.getLayers()
+            //     .getArray()
+            //     .filter((layer) => layer.get("name") === "pin")
+            //     .forEach((layer) => _map.removeLayer(layer));
+
+            const lat = marker.lat;
+            const lng = marker.lng;
+
+            /* Verificar se as coordenadas são válidas */
+            if (isNaN(lat) || isNaN(lng)) {
+                console.error("Coordenadas inválidas para marcador:", marker);
+                return;
+            }
+
+            console.log("Coordenadas lng, lat:", lng, lat);
+
+            const iconFeature = new ol.Feature({
+                geometry: new ol.geom.Point(
+                    ol.proj.transform([lat, lng], "EPSG:4326", "EPSG:3857")
+                ),
+                name: marker.label || "",
+            });
+
+            const vectorSource = new ol.source.Vector({
+                features: [iconFeature],
+            });
+
+            const vectorLayer = new ol.layer.Vector({
+                source: vectorSource,
+                name: "pin",
+                style: function (feature) {
+                    const label = feature.get("name");
+                    const style = _styles.markerLabel.clone();
+                    style.getText().setText(label);
+                    return [_styles.defaultMarker, style];
+                },
+            });
+
+            /* Definir um zIndex alto para garantir que o marcador fique acima de outras camadas */
+            vectorLayer.setZIndex(1000);
+
+            _map.addLayer(vectorLayer);
+            _layers.marker = vectorLayer;
+
+            /* Centralizar o mapa no marcador */
+            if (flyTo) {
+                _flyTo([lat, lng], 17);
+            }
+        }
+
+        function _highlightGeom(geom) {
+            // TODO: Verificar se é preciso limpar a fonte de destaque antes de adicionar novas features
+            // _highlightSource.clear();
+
+            const features = new ol.format.GeoJSON().readFeatures(geom, {
+                featureProjection: "EPSG:3857",
+            });
+
+            // Marca as features como customizadas
+            features.forEach((f) => f.set("custom", true));
+
+            _highlightSource.addFeatures(features);
+        }
+
+        function _flyTo(location, zoom = null) {
+            if (!_map || !location) return;
+
+            console.log("Iniciando _flyTo - Zoom recebido:", zoom);
+
+            // 1. Processa as coordenadas
+            const targetCoords = Array.isArray(location)
+                ? ol.proj.fromLonLat(location)
+                : location;
+
+            // 2. Define o zoom (com fallback para o zoom atual)
+            const targetZoom =
+                zoom !== null && !isNaN(zoom)
+                    ? Number(zoom)
+                    : _map.getView().getZoom();
+
+            console.log("Zoom que será aplicado:", targetZoom);
+
+            // 3. Cancela qualquer animação em andamento
+            _map.getView().cancelAnimations();
+
+            // 4. Animação única combinando movimento e zoom
+            const animationOpts = {
+                center: targetCoords,
+                zoom: targetZoom,
+                duration: 1500,
+            };
+
+            console.log("Opções de animação:", animationOpts);
+            _map.getView().animate(animationOpts);
+        }
+
+        function _configStroke(strokeColor, fillColor) {
+            console.log(
+                "_configStroke - strokeColor:",
+                strokeColor,
+                "fillColor:",
+                fillColor
+            );
+
+            if (!_highlightSource) return;
+
+            // Atualiza apenas features customizadas
+            _highlightSource
+                .getFeatures()
+                .filter((feature) => feature.get("custom"))
+                .forEach((feature) => {
+                    feature.setStyle(
+                        new ol.style.Style({
+                            stroke: new ol.style.Stroke({
+                                color: strokeColor,
+                                width: 3,
+                            }),
+                            fill: new ol.style.Fill({
+                                color: fillColor,
+                            }),
+                        })
+                    );
+                });
+        }
+
+        function _getGeometryCentroid(geometry) {
+            if (!geometry || !geometry.type) return null;
+
+            /* Para pontos, retorna as coordenadas diretamente */
+            if (geometry.type === "Point") {
+                return geometry.coordinates;
+            }
+
+            /* Para outras geometrias, calcula o centróide */
+            if (typeof turf !== "undefined") {
+                try {
+                    return turf.centroid(geometry).geometry.coordinates;
+                } catch (e) {
+                    console.error("Erro ao calcular centróide com turf:", e);
+                }
+            }
+
+            /* Fallback para polígonos sem turf.js */
+            if (
+                geometry.type === "Polygon" &&
+                geometry.coordinates &&
+                geometry.coordinates[0]
+            ) {
+                const firstRing = geometry.coordinates[0];
+                if (firstRing.length > 0) {
+                    return firstRing[0]; /* Retorna o primeiro ponto */
+                }
+            }
+
+            return null;
+        }
+
+        /* Verifica se uma geometria é válida */
+        function _validateGeometry(geom) {
+            if (!geom || !geom.type || !geom.coordinates) {
+                console.warn("Geometria inválida:", geom);
+                return false;
+            }
+            console.log("Geometria:", geom);
+            return true;
+        }
+
+        /* Obtém coordenadas com verificação de segurança */
+        function _safeGetCoordinates(geom) {
+            try {
+                if (_validateGeometry(geom)) {
+                    return geom.coordinates;
+                }
+                return null;
+            } catch (e) {
+                console.error("Erro ao obter coordenadas:", e);
+                return null;
+            }
+        }
+
+        /* Classes de Controles Customizados */
+        class MousePositionControl extends ol.control.Control {
+            constructor() {
+                const container = document.createElement("div");
+                container.classList.add(
+                    "custom-control",
+                    "rectangle-medium-ctrl",
+                    "Mouse-Position-Control"
+                );
+                $(container)
+                    .attr("id", "mousepositioncontainer")
+                    .css("font-size", "11px");
+
+                super({
+                    element: container,
+                });
+
+                new ol.control.MousePosition({
+                    coordinateFormat: ol.coordinate.createStringXY(4),
+                    projection: "EPSG:4326",
+                    target: container,
+                });
+            }
+        }
+
+        class FeatureInspectControl extends ol.control.Control {
+            constructor() {
+                /* Cria o container principal */
+                const container = document.createElement("div");
+                container.className =
+                    "custom-control small-ctrl Imov-Touch-Control";
+
+                /* Cria o botão de controle */
+                const button = document.createElement("button");
+                button.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+                container.appendChild(button);
+
+                /* Chama o construtor pai */
+                super({
+                    element: container,
+                });
+
+                /* Armazena referências importantes */
+                this.container = container;
+                this.button = button;
+                this.enabled = false;
+
+                /* Bind dos métodos */
+                this.toggle = this.toggle.bind(this);
+                this._onDragUpdate = this._onDragUpdate.bind(this);
+                this._onHighlightFeature = this._onHighlightFeature.bind(this);
+
+                /* Event listeners */
+                button.addEventListener("click", this.toggle);
+            }
+
+            toggle() {
+                if (this.enabled) {
+                    this.disable();
+                } else {
+                    this.enable();
+                }
+            }
+
+            enable() {
+                if (this.enabled || !_map) return;
+
+                console.log("Ativando FeatureInspectControl");
+                this.enabled = true;
+
+                /* Atualiza a UI */
+                this.container.classList.add("small-ctrl-extend");
+                _map.getViewport().style.cursor = "crosshair";
+
+                /* Adiciona listeners com delay para garantir que o mapa está pronto */
+                setTimeout(() => {
+                    try {
+                        _map.on("moveend", this._onDragUpdate);
+                        _map.on("pointermove", this._onHighlightFeature);
+                        this._onDragUpdate(); /* Carrega features imediatamente */
+                    } catch (e) {
+                        console.error("Erro ao ativar FeatureInspect:", e);
+                    }
+                }, 100);
+            }
+
+            disable() {
+                if (!this.enabled || !_map) return;
+
+                console.log("Desativando FeatureInspectControl");
+                this.enabled = false;
+
+                /* Remove listeners */
+                _map.un("moveend", this._onDragUpdate);
+                _map.un("pointermove", this._onHighlightFeature);
+
+                /* Atualiza a UI */
+                this.container.classList.remove("small-ctrl-extend");
+                _map.getViewport().style.cursor = "";
+
+                /* Limpa features */
+                if (_highlightSource) {
+                    _highlightSource.clear();
+                }
+            }
+
+            _onDragUpdate() {
+                console.log("FeatureInspectControl - _onDragUpdate()");
+                if (!this.enabled) return;
+
+                /**
+                 * TODO:Layer de lotes
+                 *
+                 * Obter via configuração, a layer de lotes, para que não
+                 * dependa de uma URL fixa
+                 *
+                 */
+                const geoserver_url =
+                    "https://geo.jaraguadosul.sc.gov.br/gs/geoserver-hive/PMJS/wms";
+                if (_map.getView().getZoom() > 16) {
+                    $.post(
+                        geoserver_url,
+                        {
+                            service: "WFS",
+                            request: "GetFeature",
+                            typeNames: "lotes",
+                            version: "2.0.0",
+                            srsName: "EPSG:4326",
+                            outputFormat: "application/json",
+                            bbox:
+                                _map
+                                    .getView()
+                                    .calculateExtent(_map.getSize())
+                                    .join(",") + ", EPSG:3857",
+                        },
+                        function (data) {
+                            const features =
+                                new ol.format.GeoJSON().readFeatures(data, {
+                                    featureProjection: "EPSG:3857",
+                                });
+
+                            /* Marca as features como vindas do WFS */
+                            features.forEach((f) => f.set("source", "wfs"));
+
+                            _highlightSource.addFeatures(features);
+                        }
+                    );
+                }
+            }
+
+            _onHighlightFeature(e) {
+                if (!e || !e.pixel) return;
+                if (!this.enabled) return;
+
+                /*
+                console.log("FeatureInspectControl - _onHighlightFeature()");
+                console.log("e:");
+                console.log(e);
+                */
+
+                _hoverFeatures.forEach((feat) => feat.setStyle(null));
+                _hoverFeatures = [];
+
+                _map.forEachFeatureAtPixel(e.pixel, function (feature) {
+                    feature.setStyle(_styles.highlightImovel);
+                    _hoverFeatures.push(feature);
+                });
+            }
+        }
+
+        /* API Pública */
+        return {
+            init: function (config) {
+                _initMap(config);
+                return this;
+            },
+
+            addPin: function (marker) {
+                _addPin(marker);
+                return this;
+            },
+
+            highlightGeometry: function (geom) {
+                _highlightGeom(geom);
+                return this;
+            },
+
+            flyTo: function (location, zoom) {
+                _flyTo(location, zoom);
+                return this;
+            },
+
+            addLayer: function (name, config) {
+                console.log("addLayer", name, config);
+                let layer;
+
+                if (config.type === "wms") {
+                    layer = new ol.layer.Tile({
+                        name: name,
+                        source: new ol.source.TileWMS({
+                            url: config.url,
+                            params: {
+                                LAYERS: config.layers,
+                                TILED: true,
+                                TRANSPARENT: true,
+                            },
+                            serverType: "geoserver",
+                            crossOrigin: "anonymous",
+                        }),
+                    });
+                } else if (config.type === "xyz") {
+                    layer = new ol.layer.Tile({
+                        name: name,
+                        source: new ol.source.XYZ({
+                            url: config.url,
+                            maxZoom: config.maxZoom || 19,
+                            crossOrigin: "anonymous",
+                        }),
+                    });
+                }
+
+                if (layer) {
+                    layer.setZIndex(config.zIndex || 0);
+                    _map.addLayer(layer);
+                    _layers[name] = layer;
+                }
+
+                return this;
+            },
+
+            removeLayer: function (name) {
+                if (_layers[name]) {
+                    _map.removeLayer(_layers[name]);
+                    delete _layers[name];
+                }
+                return this;
+            },
+
+            getMap: function () {
+                return _map;
+            },
+
+            getPopup: function () {
+                return _popup;
+            },
+
+            configStroke: function (strokeColor, fillColor) {
+                if (typeof _configStroke === "function") {
+                    _configStroke(strokeColor, fillColor);
+                }
+                return this;
+            },
+
+            validateGeometry: _validateGeometry,
+
+            safeGetCoordinates: _safeGetCoordinates,
+
+            clearHighlight: function () {
+                if (_highlightSource) {
+                    _highlightSource.clear();
+                }
+            },
+        };
+    })();
+
+    /* Garante que GeoMapApp está disponível globalmente */
+    if (typeof GeoMapApp !== "undefined") {
+        window.GeoMapApp = GeoMapApp;
+    } else {
+        console.error("Falha ao inicializar GeoMapApp");
+    }
+
+    /* Funções globais necessárias para compatibilidade */
+    window.configStroke = function (strokeColor, fillColor) {
+        if (typeof _updateHighlightStyle === "function") {
+            _updateHighlightStyle(strokeColor, fillColor);
+        } else {
+            console.error("_updateHighlightStyle não está disponível");
+        }
+    };
+
+    window.limparOverlays = function () {
+        /* Mantém compatibilidade com código legado */
+        const popups = GeoMapApp.getMap().getOverlays().getArray();
+        popups.forEach((popup) => {
+            if (popup !== GeoMapApp.getPopup()) {
+                GeoMapApp.getMap().removeOverlay(popup);
+            }
+        });
+    };
+
+    window.DrawCircleOnLonLat = function (
+        lon,
+        lat,
+        radius,
+        strokeColor,
+        fillColor
+    ) {
+        const circle = new ol.geom.Circle(
+            ol.proj.transform([lon, lat], "EPSG:4326", "EPSG:3857"),
+            radius
+        );
+
+        const circleFeature = new ol.Feature(circle);
+        const vectorSource = new ol.source.Vector();
+        vectorSource.addFeatures([circleFeature]);
+
+        const circleLayer = new ol.layer.Vector({
+            source: vectorSource,
+            style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: strokeColor,
+                    width: 3,
+                }),
+                fill: new ol.style.Fill({
+                    color: fillColor,
+                }),
+            }),
+        });
+
+        GeoMapApp.getMap().addLayer(circleLayer);
+        return circleLayer;
+    };
+
+    window.clearGeomSource = function () {
+        if (GeoMapApp && GeoMapApp.getMap()) {
+            const highlightLayer = GeoMapApp.getMap()
+                .getLayers()
+                .getArray()
+                .find((layer) => layer.get("name") === "highlight");
+
+            if (highlightLayer) {
+                highlightLayer.getSource().clear();
+            }
+        }
+    };
+})();

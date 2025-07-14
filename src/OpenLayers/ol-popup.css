@@ -73,3 +73,35 @@
 .ol-popup.marker {
     margin-bottom: 30px;
 }
+
+
+/**
+  * Popup styles for the OpenLayers map
+  * This file is used to style the popup that appears on the map
+  * when a marker or feature is clicked.
+  */
+
+.ol-popup {
+    position: absolute;
+    background-color: white;
+    border-radius: 5px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    padding: 0;
+    min-width: 270px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.ol-popup-content {
+    padding: 15px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: #333;
+}
+
+.ol-popup-closer {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+}
