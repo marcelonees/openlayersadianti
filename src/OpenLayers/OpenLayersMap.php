@@ -29,8 +29,7 @@ class OpenLayersMap extends TElement
     private $lat = -26.504104;
     private $z   = 15;
     private $heatmapMarkers = [];
-    private $heatmapData = [];
-
+    private $heatmapData    = [];
 
     /**
      * Class Constructor
@@ -72,7 +71,6 @@ class OpenLayersMap extends TElement
 
             // Mapa
             TScript::create("
-
                 
                     var map;
 
@@ -182,6 +180,24 @@ class OpenLayersMap extends TElement
                             })
                         });
 
+                        /*
+                        var quarteirao_view = new ol.layer.Tile({
+                            name: 'quarteirao_view',
+                            source: new ol.source.TileWMS({
+                                url: 'https://geo.jaraguadosul.sc.gov.br/gs/geoserver-hive/PMJS/wms?',
+                                params: {
+                                    'layers': 'quarteirao_view',
+                                    'TILED': true,
+                                    'tiled': true,
+                                    'TRANSPARENT': true,
+                                    'srs': 'EPGS:3857',
+                                    'STYLES': 'vigepi_quarteirao_descricao'
+                                },
+                                serverType: 'geoserver',
+                                crossOrigin: 'anonymous'
+                            })
+                        });
+                        */
 
                         map = new ol.Map({
                             target: $this->id,
@@ -193,8 +209,8 @@ class OpenLayersMap extends TElement
                             layers: [
                                 baseLayer, 
                                 limite_municipal, 
-                                limite_bairros 
-                                /* , ortomosaico, layerFeatures, */
+                                limite_bairros,
+                                /* quarteirao_view, ortomosaico, layerFeatures, */
                             ],
 
                             view: new ol.View({
@@ -283,7 +299,8 @@ class OpenLayersMap extends TElement
                 
             ");
         } catch (Exception $e) {
-            new TMessage('error', $e->getMessage());
+            // new TMessage('error', $e->getMessage());
+            throw new Exception($e->getMessage());
         }
     }
 
@@ -330,9 +347,9 @@ class OpenLayersMap extends TElement
 
 
     /**
-     * addLayer
+     * addLayerBack
      */
-    public function addLayer($layerName, $sourceType = "OSM", $attributions = NULL, $sourceUrl = NULL, $minZoom = 8, $maxZoom = 19)
+    public function addLayerBack($layerName, $sourceType = "OSM", $attributions = NULL, $sourceUrl = NULL, $minZoom = 8, $maxZoom = 19)
     {
         /*
         
@@ -600,6 +617,36 @@ class OpenLayersMap extends TElement
 
                 TScript::create("$this->javascript");
             }
+        }
+    }
+
+    /**
+     * addLayer - Add a layer on the map
+     */
+    public function addLayer($name, $structure)
+    {
+        if (!empty($name) && !empty($structure)) {
+
+            // $structure = unserialize($structure);
+
+            // echo '<pre>';
+            // print_r("var $name = ");
+            // print_r('<hr>');
+            // print_r($structure);
+            // echo '<pre>';
+
+            $this->javascript .= "
+                /*console.log('addLayer($name, $structure)');*/
+                
+                
+                if (!map.getLayers().getArray().some(layer => layer.get('name') === '$name')) {
+                    $structure
+                    map.addLayer($name);
+                }
+                
+            ";
+
+            // TScript::create("$this->javascript");
         }
     }
 
