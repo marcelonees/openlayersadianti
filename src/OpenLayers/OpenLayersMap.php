@@ -11,7 +11,7 @@ use stdClass;
 
 /**
  * OpenLayersMap Container
- * @version 1.1.0
+ * @version 1.1
  * @author Marcelo Barreto Nees
  * @copyright Copyright (c) 2025 Marcelo Barreto Nees <marcelo.linux@gmail.com>
  * @license MIT
@@ -277,30 +277,6 @@ class OpenLayersMap extends TElement
         ";
 
         return $this;
-    }
-
-
-    /**
-     * Add a marker to the map
-     */
-    public function addMarkerBack($lat, $lng, $label = '')
-    {
-        $safeLabel = addslashes($label);
-        $this->javascript .= "
-            /* Verifica se GeoMapApp está disponível */
-            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
-                console.log('addMarker: lat($lat), lng($lng), label($label)');
-                GeoMapApp.addPin({
-                    lat: {$lat},
-                    lng: {$lng},
-                    label: '{$safeLabel}'
-                });
-            } else {
-                console.error('GeoMapApp não disponível para adicionar marcador');
-            }
-        ";
-        TScript::create("$this->javascript");
-        // return $this;
     }
 
     /**
@@ -968,6 +944,7 @@ class OpenLayersMap extends TElement
                                 }
                                 
                                 /* Adiciona outras propriedades */
+                                /*
                                 for (var prop in geometry.properties) {
                                     if (geometry.properties.hasOwnProperty(prop) && prop !== 'url') {
                                         popupContent += '<div style=\"margin-bottom: 5px;\">' +
@@ -976,10 +953,11 @@ class OpenLayersMap extends TElement
                                             '</div>';
                                     }
                                 }
+                                */
                                 popupContent += '</div>';
                                 
                                 /* Exibe o popup */
-                                popup.show(mapCoord, popupContent);
+                                /*popup.show(mapCoord, popupContent);*/
                                 
                             }, 500);
                         }
