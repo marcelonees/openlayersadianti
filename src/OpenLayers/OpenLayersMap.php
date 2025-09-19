@@ -539,7 +539,7 @@ class OpenLayersMap extends TElement
         $tileSize = $config['tileSize'] ?? 256; // Padrão 256x256 se não especificado
         $opacity  = $config['opacity'] ?? 0.8;
         $zIndex   = $config['zIndex']  ?? 5;
-        $visible  = $config['visible'] ? 'true' : 'false';
+        $visible  = $config['visible'] ?? true ? 'true' : 'false';
 
         return "
             try {
