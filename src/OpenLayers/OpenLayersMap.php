@@ -747,10 +747,6 @@ class OpenLayersMap extends TElement
     public function HighlightAndFlyToGeom($geom, $z = 10)
     {
         try {
-            // echo '<pre>';
-            // print_r("HighlightAndFlyToGeom(\$geom, $z)");
-            // echo '</pre>';
-
             /* Decodifica o JSON da geometria */
             $geoJson = json_decode($geom);
 
@@ -759,9 +755,10 @@ class OpenLayersMap extends TElement
                 $geoJson = json_decode($geoJson);
             }
 
-            // echo '<pre>';
-            // print_r($geoJson);
-            // echo '</pre>';
+            /* VERIFICAÇÃO CRÍTICA - Garante que $geoJson não seja null */
+            if ($geoJson === null) {
+                throw new Exception('Falha ao decodificar JSON da geometria. String inválida: ' . substr($geom, 0, 100));
+            }
 
             /* Verifica se é uma FeatureCollection */
             if (
@@ -1014,6 +1011,38 @@ class OpenLayersMap extends TElement
         }
     }
 
+    /**
+     * Add marker immediately (for static contexts)
+     */
+    public function addMarkerImmediate($lat, $lng, $label = '')
+    {
+        $lat = (float)$lat;
+        $lng = (float)$lng;
+        $safeLabel = addslashes($label);
+
+        $js = "
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
+                GeoMapApp.addPin({
+                    lat: {$lat},
+                    lng: {$lng},
+                    label: '{$safeLabel}'
+                });
+            }
+        ";
+
+        TScript::create($js);
+        return $this;
+    }
+
+    /**
+     * Add layer immediately (for static contexts)
+     */
+    public function addLayerImmediate($layerName, array $config = [])
+    {
+        $js = $this->createXYZLayerJS($layerName, $config);
+        TScript::create($js);
+        return $this;
+    }
 
     /**
      * configStroke a Geom on the Map
