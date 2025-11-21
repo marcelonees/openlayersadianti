@@ -487,20 +487,40 @@
 
     function _updateCoordinateFields(coordinate) {
       console.log("_updateCoordinateFields(coordinate):", coordinate);
-      const latField = document.getElementById("lat");
-      const lonField = document.getElementById("lon");
+
+      /* Busca por vários possíveis IDs/nomes de campos */
+      const latField =
+        document.getElementById("lat") ||
+        document.querySelector('[name="lat"]') ||
+        document.querySelector('[id*="lat"]');
+
+      const lonField =
+        document.getElementById("lon") ||
+        document.querySelector('[name="lon"]') ||
+        document.querySelector('[id*="lon"]');
+
+      console.log("Campos encontrados:", { latField, lonField });
 
       if (latField) {
         latField.value = coordinate.lat;
-        $("#lat").trigger("change");
+        /* Dispara eventos de change */
+        $(latField).trigger("change");
+        latField.dispatchEvent(new Event("change", { bubbles: true }));
+        console.log("Campo lat atualizado:", coordinate.lat);
+      } else {
+        console.warn("Campo lat não encontrado");
       }
 
       if (lonField) {
         lonField.value = coordinate.lng;
-        $("#lon").trigger("change");
+        /*  Dispara eventos de change */
+        $(lonField).trigger("change");
+        lonField.dispatchEvent(new Event("change", { bubbles: true }));
+        console.log("Campo lon atualizado:", coordinate.lng);
+      } else {
+        console.warn("Campo lon não encontrado");
       }
     }
-
     function _handleEmptyClick(coordinate) {
       console.log("_handleEmptyClick");
       _updateCoordinateFields(coordinate);
