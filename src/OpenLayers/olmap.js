@@ -488,39 +488,86 @@
     function _updateCoordinateFields(coordinate) {
       console.log("_updateCoordinateFields(coordinate):", coordinate);
 
-      /* Busca por vários possíveis IDs/nomes de campos */
-      const latField =
-        document.getElementById("lat") ||
-        document.querySelector('[name="lat"]') ||
-        document.querySelector('[id*="lat"]');
+      // Busca por campos lat/lon e pega o último elemento de cada
+      let latField = null;
+      let lonField = null;
 
-      const lonField =
-        document.getElementById("lon") ||
-        document.querySelector('[name="lon"]') ||
-        document.querySelector('[id*="lon"]');
+      // Busca todos os campos com id="lat" ou name="lat"
+      const allLatFields = document.querySelectorAll(
+        '[id="lat"], [name="lat"]',
+      );
+      if (allLatFields.length > 0) {
+        // Pega o último campo (mais recente no DOM)
+        latField = allLatFields[allLatFields.length - 1];
+        console.log(
+          `Campo lat encontrado (${allLatFields.length} total, usando último)`,
+        );
+      }
 
-      console.log("Campos encontrados:", { latField, lonField });
+      // Busca todos os campos com id="lon" ou name="lon"
+      const allLonFields = document.querySelectorAll(
+        '[id="lon"], [name="lon"]',
+      );
+      if (allLonFields.length > 0) {
+        // Pega o último campo (mais recente no DOM)
+        lonField = allLonFields[allLonFields.length - 1];
+        console.log(
+          `Campo lon encontrado (${allLonFields.length} total, usando último)`,
+        );
+      }
+
+      // Fallback: procura por campos com id contendo "lat" ou "lon"
+      if (!latField) {
+        const allLatPattern = document.querySelectorAll(
+          '[id*="lat"], [name*="lat"]',
+        );
+        if (allLatPattern.length > 0) {
+          latField = allLatPattern[allLatPattern.length - 1];
+          console.log(`Campo lat pattern encontrado (usando último)`);
+        }
+      }
+
+      if (!lonField) {
+        const allLonPattern = document.querySelectorAll(
+          '[id*="lon"], [name*="lon"]',
+        );
+        if (allLonPattern.length > 0) {
+          lonField = allLonPattern[allLonPattern.length - 1];
+          console.log(`Campo lon pattern encontrado (usando último)`);
+        }
+      }
+
+      console.log("Campos selecionados:", { latField, lonField });
 
       if (latField) {
         latField.value = coordinate.lat;
-        /* Dispara eventos de change */
+        // Dispara eventos de change
         $(latField).trigger("change");
         latField.dispatchEvent(new Event("change", { bubbles: true }));
         console.log("Campo lat atualizado:", coordinate.lat);
+
+        // Adiciona uma classe para indicar que foi atualizado (opcional)
+        latField.classList.add("coordinate-updated");
+        setTimeout(() => latField.classList.remove("coordinate-updated"), 500);
       } else {
         console.warn("Campo lat não encontrado");
       }
 
       if (lonField) {
         lonField.value = coordinate.lng;
-        /*  Dispara eventos de change */
+        // Dispara eventos de change
         $(lonField).trigger("change");
         lonField.dispatchEvent(new Event("change", { bubbles: true }));
         console.log("Campo lon atualizado:", coordinate.lng);
+
+        // Adiciona uma classe para indicar que foi atualizado (opcional)
+        lonField.classList.add("coordinate-updated");
+        setTimeout(() => lonField.classList.remove("coordinate-updated"), 500);
       } else {
         console.warn("Campo lon não encontrado");
       }
     }
+
     function _handleEmptyClick(coordinate) {
       console.log("_handleEmptyClick");
       _updateCoordinateFields(coordinate);
