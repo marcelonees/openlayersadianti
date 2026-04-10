@@ -1071,7 +1071,7 @@
             {
               service: "WFS",
               request: "GetFeature",
-              typeNames: "view_lote",
+              typeNames: "view_territorio",
               version: "2.0.0",
               srsName: "EPSG:4326",
               outputFormat: "application/json",
