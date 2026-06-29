@@ -1,10 +1,10 @@
 /**
- * OpenLayers Map Manager - 1.2
+ * OpenLayers Map Manager - 1.3
  *
  * Autor: Marcelo Barreto Nees
  * Data: 2023-10-01
- * Descrição: Gerenciador de mapas OpenLayers com suporte a eventos, camadas e
- * funcionalidades avançadas como destaque de feições, popups e controle de atividades.
+ * Descrição: Gerenciador de mapas OpenLayers com suporte a eventos, camadas,
+ * salvar/restaurar configurações e controle de camadas.
  * Licença: MIT
  * Dependências: OpenLayers, Turf.js
  */
@@ -22,7 +22,7 @@
 
   if (missingLibs.length > 0) {
     const errorMsg = `Falha ao carregar dependências: ${missingLibs.join(
-      ", "
+      ", ",
     )}`;
     console.error(errorMsg);
     throw new Error(errorMsg);
@@ -49,6 +49,25 @@
     let _hoverFeatures = [];
     const _controls = {};
     const _layers = {};
+    const _layerConfigs = {};
+    let _pendingLayers = [];
+
+    /* ======================================== */
+    /* VARIÁVEIS PARA CONFIGURAÇÃO             */
+    /* ======================================== */
+    let _mapConfig = {
+      layers: {},
+      ui: {
+        layerControlCollapsed: false,
+      },
+      map: {
+        center: null,
+        zoom: null,
+      },
+    };
+    let _configFieldId = null;
+    let _isLayerControlCollapsed = false;
+    let _layerControlContainer = null;
 
     /* Estilos centralizados */
     const _styles = {
@@ -110,22 +129,15 @@
       console.log("_initMap - config");
       console.log(config);
 
+      /* Armazena configurações do mapa */
+      if (config.configField) {
+        _configFieldId = config.configField;
+      }
+
       try {
         _map = new ol.Map({
           target: config.target,
-          layers: [
-            /**
-             * Se quiser deixar a camada do OpenStreetMap habilitada por
-             * padrão, é preciso descomentar o bloco abaixo
-             */
-            /*
-                        new ol.layer.Tile({
-                            source: new ol.source.OSM({
-                                crossOrigin: null,
-                            }),
-                        }),
-                        */
-          ],
+          layers: [],
           view: new ol.View({
             center: ol.proj.fromLonLat([config.center.lng, config.center.lat]),
             zoom: config.zoom,
@@ -139,9 +151,160 @@
         _initPopup();
         _initControls();
         _setupEventListeners();
+
+        /* Processa camadas pendentes */
+        if (_pendingLayers.length > 0) {
+          console.log(
+            "📌 Processando camadas pendentes:",
+            _pendingLayers.length,
+          );
+          _pendingLayers.forEach(function (layerData) {
+            _addLayerInternal(layerData.name, layerData.config);
+          });
+          _pendingLayers = [];
+        }
+
+        /* Adiciona controle de camadas se configurado */
+        if (config.showLayerControl !== false) {
+          _addLayerControl();
+        }
+
+        /* Restaura configurações se fornecidas */
+        if (config.restoreConfig) {
+          setTimeout(function () {
+            _restoreMapConfig(config.restoreConfig);
+          }, 500);
+        }
+
         console.log("Map initialized successfully");
       } catch (error) {
         console.error("Map initialization failed:", error);
+      }
+    }
+
+    /* ======================================== */
+    /* MÉTODO INTERNO PARA ADICIONAR CAMADAS   */
+    /* ======================================== */
+
+    function _addLayerInternal(name, config) {
+      console.log("_addLayerInternal", name, config);
+
+      if (!_map) {
+        console.warn("⚠️ Mapa não inicializado, adicionando à fila:", name);
+        _pendingLayers.push({ name: name, config: config });
+        return;
+      }
+
+      let layer = null;
+      const layerConfig = {
+        name: name,
+        title: config.title || name,
+        visible: config.visible !== false,
+        opacity: config.opacity || 1.0,
+        zIndex: config.zIndex || 0,
+      };
+
+      try {
+        /* Cria a camada baseada no tipo */
+        switch (config.type) {
+          case "wms":
+            const wmsParams = config.params || {};
+            /* Garante que LAYERS está definido */
+            if (!wmsParams.LAYERS) {
+              wmsParams.LAYERS = name;
+            }
+
+            layer = new ol.layer.Tile({
+              name: name,
+              title: layerConfig.title,
+              source: new ol.source.TileWMS({
+                url: config.url,
+                params: wmsParams,
+                serverType: config.serverType || "geoserver",
+                crossOrigin: config.crossOrigin || "anonymous",
+                transition: 0,
+              }),
+              visible: layerConfig.visible,
+              opacity: layerConfig.opacity,
+              zIndex: layerConfig.zIndex,
+            });
+            break;
+
+          case "xyz":
+            layer = new ol.layer.Tile({
+              name: name,
+              title: layerConfig.title,
+              source: new ol.source.XYZ({
+                url: config.url,
+                maxZoom: config.maxZoom || 19,
+                minZoom: config.minZoom || 0,
+                tileSize: config.tileSize || 256,
+                attributions: config.attributions || null,
+              }),
+              visible: layerConfig.visible,
+              opacity: layerConfig.opacity,
+              zIndex: layerConfig.zIndex,
+            });
+            break;
+
+          case "vector":
+            layer = new ol.layer.Vector({
+              name: name,
+              title: layerConfig.title,
+              source: new ol.source.Vector({
+                url: config.url,
+                format: new ol.format.GeoJSON(),
+              }),
+              style: config.style || null,
+              visible: layerConfig.visible,
+              opacity: layerConfig.opacity,
+              zIndex: layerConfig.zIndex,
+            });
+            break;
+
+          case "tile":
+          default:
+            /* Camada tile padrão (OSM) */
+            layer = new ol.layer.Tile({
+              name: name,
+              title: layerConfig.title,
+              source: new ol.source.OSM(),
+              visible: layerConfig.visible,
+              opacity: layerConfig.opacity,
+              zIndex: layerConfig.zIndex,
+            });
+            break;
+        }
+
+        if (layer) {
+          _map.addLayer(layer);
+          _layers[name] = layer;
+          _layerConfigs[name] = layerConfig;
+          console.log(`✅ Camada adicionada: ${name} (${layerConfig.title})`);
+
+          /* Atualiza controle de camadas se existir */
+          _updateLayerControl();
+
+          /* Atualiza configuração */
+          _updateConfigField();
+        } else {
+          console.error(`❌ Falha ao criar camada: ${name}`);
+        }
+      } catch (e) {
+        console.error(`❌ Erro ao adicionar camada ${name}:`, e);
+      }
+    }
+
+    function _updateLayerControl() {
+      /* Remove controle existente e recria */
+      if (_layerControlContainer) {
+        _layerControlContainer.remove();
+        _layerControlContainer = null;
+      }
+
+      /* Recria se configurado */
+      if (_map && _initialized) {
+        _addLayerControl();
       }
     }
 
@@ -153,12 +316,462 @@
       /* Remove event listeners antigos para evitar duplicação */
       _map.un("click", _handleMapClick);
       _map.un("pointermove", _handlePointerMove);
+      _map.un("moveend", _handleMapMoveEnd);
 
       /* Adiciona os listeners */
       _map.on("click", _handleMapClick);
       _map.on("pointermove", _handlePointerMove);
+      _map.on("moveend", _handleMapMoveEnd);
 
       console.log("_setupEventListeners - completed");
+    }
+
+    /* ======================================== */
+    /* MÉTODOS PARA CONFIGURAÇÃO               */
+    /* ======================================== */
+
+    function _handleMapMoveEnd() {
+      _updateConfigField();
+    }
+
+    /**
+     * Atualiza o campo de configuração no DOM
+     * IMPORTANTE: Usa querySelectorAll para pegar o ÚLTIMO campo com o ID
+     * (soluciona o problema de IDs duplicados quando há múltiplos formulários)
+     */
+    function _updateConfigField() {
+      if (!_configFieldId) return;
+
+      /* Busca TODOS os campos com o ID e pega o ÚLTIMO (mais recente) */
+      const allFields = document.querySelectorAll("#" + _configFieldId);
+      if (allFields.length === 0) {
+        console.warn(
+          "⚠️ Campo de configuração não encontrado:",
+          _configFieldId,
+        );
+        return;
+      }
+
+      const field = allFields[allFields.length - 1]; /* Pega o último */
+      if (!field) return;
+
+      /* Atualiza configurações do mapa */
+      if (_map) {
+        const view = _map.getView();
+        const center = view.getCenter();
+        _mapConfig.map.center = center;
+        _mapConfig.map.zoom = view.getZoom();
+      }
+
+      /* Atualiza configurações das camadas */
+      _map
+        .getLayers()
+        .getArray()
+        .forEach(function (layer) {
+          const name = layer.get("name");
+          const title = layer.get("title") || name;
+          if (
+            name &&
+            name !== "highlight" &&
+            name !== "pin" &&
+            name !== "edit_layer"
+          ) {
+            if (!_mapConfig.layers[name]) {
+              _mapConfig.layers[name] = {
+                title: title,
+              };
+            }
+            _mapConfig.layers[name].visible = layer.getVisible();
+            _mapConfig.layers[name].opacity = layer.getOpacity();
+          }
+        });
+
+      /* Atualiza UI */
+      _mapConfig.ui.layerControlCollapsed = _isLayerControlCollapsed;
+
+      /* Salva no campo */
+      field.value = JSON.stringify(_mapConfig);
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    /**
+     * Restaura a configuração do mapa
+     * IMPORTANTE: Usa querySelectorAll para pegar o ÚLTIMO elemento
+     */
+    function _restoreMapConfig(configData) {
+      if (!configData) {
+        console.log("⚠️ Nenhum dado de configuração para restaurar");
+        return;
+      }
+
+      console.log("📌 Restaurando configurações do mapa");
+
+      try {
+        const config =
+          typeof configData === "string" ? JSON.parse(configData) : configData;
+
+        /* Restaura camadas */
+        if (config.layers) {
+          Object.keys(config.layers).forEach(function (name) {
+            const settings = config.layers[name];
+            const layer = _map
+              .getLayers()
+              .getArray()
+              .find(function (l) {
+                return l.get("name") === name;
+              });
+
+            if (layer) {
+              if (settings.visible !== undefined) {
+                layer.setVisible(settings.visible);
+              }
+              if (settings.opacity !== undefined) {
+                layer.setOpacity(settings.opacity);
+              }
+
+              /* Atualiza UI do controle de camadas - usa querySelectorAll com último */
+              const allCheckboxes = document.querySelectorAll(
+                "#layer_chk_" + name,
+              );
+              if (allCheckboxes.length > 0) {
+                const checkbox = allCheckboxes[allCheckboxes.length - 1];
+                if (checkbox) {
+                  checkbox.checked = settings.visible !== false;
+                }
+              }
+
+              const allSliders = document.querySelectorAll(
+                "#layer_opacity_" + name,
+              );
+              if (allSliders.length > 0) {
+                const slider = allSliders[allSliders.length - 1];
+                if (slider) {
+                  slider.value = Math.round((settings.opacity || 1) * 100);
+                  const label = slider.parentNode.querySelector("span");
+                  if (label) {
+                    label.textContent =
+                      Math.round((settings.opacity || 1) * 100) + "%";
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        /* Restaura UI - também usa o último */
+        if (config.ui && config.ui.layerControlCollapsed !== undefined) {
+          _isLayerControlCollapsed = config.ui.layerControlCollapsed;
+          const allBodies = document.querySelectorAll("#layer_control_body");
+          const allIcons = document.querySelectorAll("#layer_toggle_btn i");
+
+          if (allBodies.length > 0 && allIcons.length > 0) {
+            const bodyEl = allBodies[allBodies.length - 1];
+            const icon = allIcons[allIcons.length - 1];
+
+            if (bodyEl && icon) {
+              if (_isLayerControlCollapsed) {
+                bodyEl.style.display = "none";
+                icon.className = "fas fa-chevron-down";
+              } else {
+                bodyEl.style.display = "block";
+                icon.className = "fas fa-chevron-up";
+              }
+            }
+          }
+        }
+
+        /* Restaura posição do mapa */
+        if (config.map) {
+          if (config.map.center) {
+            _map.getView().setCenter(config.map.center);
+          }
+          if (config.map.zoom) {
+            _map.getView().setZoom(config.map.zoom);
+          }
+        }
+
+        console.log("✅ Configurações restauradas com sucesso");
+      } catch (e) {
+        console.error("❌ Erro ao restaurar configurações:", e);
+      }
+    }
+
+    /* ======================================== */
+    /* CONTROLE DE CAMADAS                     */
+    /* ======================================== */
+
+    function _addLayerControl() {
+      const container = document.createElement("div");
+      container.id = "layer_control_container";
+      container.className = "ol-editor-layer-control";
+      container.style.cssText = `
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            min-width: 200px;
+            max-height: 350px;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            cursor: default;
+        `;
+
+      /* Header */
+      const header = document.createElement("div");
+      header.id = "layer_control_header";
+      header.className = "ol-editor-layer-control-header";
+      header.style.cssText = `
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: bold;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        `;
+
+      const leftPart = document.createElement("span");
+      leftPart.className = "ol-editor-layer-control-left";
+      leftPart.innerHTML =
+        '<span class="ol-editor-layer-control-grip"><span><i class="fas fa-layer-group"></i> Camadas</span>';
+      header.appendChild(leftPart);
+
+      const toggleBtn = document.createElement("span");
+      toggleBtn.id = "layer_toggle_btn";
+      toggleBtn.className = "ol-editor-layer-control-toggle";
+      toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+      toggleBtn.style.cssText =
+        "cursor: pointer; padding: 0 5px; font-size: 14px;";
+      header.appendChild(toggleBtn);
+
+      container.appendChild(header);
+
+      /* Body */
+      const body = document.createElement("div");
+      body.id = "layer_control_body";
+      body.className = "ol-editor-layer-control-body";
+      body.style.cssText =
+        "padding: 5px 10px; max-height: 280px; overflow-y: auto;";
+      container.appendChild(body);
+
+      /* Adiciona camadas */
+      _map
+        .getLayers()
+        .getArray()
+        .forEach(function (layer) {
+          const name = layer.get("name");
+          const title = layer.get("title") || name;
+
+          /* Filtra camadas internas */
+          if (
+            !name ||
+            name === "highlight" ||
+            name === "pin" ||
+            name === "edit_layer"
+          )
+            return;
+
+          const item = document.createElement("div");
+          item.className = "ol-editor-layer-control-item";
+          item.style.cssText =
+            "padding: 4px 0; display: flex; align-items: center; border-bottom: 1px solid #f1f3f5;";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = layer.getVisible() !== false;
+          checkbox.className = "ol-editor-layer-control-checkbox";
+          checkbox.id = "layer_chk_" + name;
+          checkbox.style.cssText = "margin-right: 8px; cursor: pointer;";
+
+          checkbox.onchange = function (e) {
+            const isChecked = this.checked;
+            layer.setVisible(isChecked);
+            console.log(
+              `🔄 Camada ${title} ${isChecked ? "ativada" : "desativada"}`,
+            );
+
+            const allSliders = document.querySelectorAll(
+              "#layer_opacity_" + name,
+            );
+            if (allSliders.length > 0) {
+              const opacitySlider = allSliders[allSliders.length - 1];
+              if (opacitySlider) {
+                opacitySlider.disabled = !isChecked;
+                opacitySlider.style.opacity = isChecked ? "1" : "0.5";
+              }
+            }
+
+            _updateConfigField();
+          };
+          item.appendChild(checkbox);
+
+          const label = document.createElement("label");
+          label.htmlFor = "layer_chk_" + name;
+          label.className = "ol-editor-layer-control-label";
+          label.textContent = title;
+          label.style.cssText =
+            "flex: 1; cursor: pointer; font-size: 12px; color: #333;";
+          item.appendChild(label);
+
+          const opacityContainer = document.createElement("div");
+          opacityContainer.className = "ol-editor-layer-control-opacity";
+          opacityContainer.style.cssText =
+            "display: flex; align-items: center; gap: 5px; margin-left: 5px;";
+
+          const opacityLabel = document.createElement("span");
+          opacityLabel.className = "ol-editor-layer-control-opacity-label";
+          const opacity = layer.getOpacity() || 1;
+          opacityLabel.textContent = Math.round(opacity * 100) + "%";
+          opacityLabel.style.cssText =
+            "font-size: 10px; color: #6c757d; min-width: 30px; text-align: right;";
+          opacityContainer.appendChild(opacityLabel);
+
+          const opacityInput = document.createElement("input");
+          opacityInput.type = "range";
+          opacityInput.min = "0";
+          opacityInput.max = "100";
+          opacityInput.value = Math.round(opacity * 100);
+          opacityInput.className = "ol-editor-layer-control-opacity-slider";
+          opacityInput.id = "layer_opacity_" + name;
+          opacityInput.disabled = !layer.getVisible();
+          opacityInput.style.cssText = `
+                width: 60px;
+                height: 4px;
+                cursor: pointer;
+            `;
+          if (!layer.getVisible()) {
+            opacityInput.style.opacity = "0.5";
+          }
+
+          opacityInput.oninput = function () {
+            const value = parseInt(this.value) / 100;
+            layer.setOpacity(value);
+            const label = this.parentNode.querySelector("span");
+            if (label) {
+              label.textContent = Math.round(value * 100) + "%";
+            }
+          };
+
+          opacityInput.onchange = function () {
+            _updateConfigField();
+          };
+          opacityContainer.appendChild(opacityInput);
+
+          item.appendChild(opacityContainer);
+          body.appendChild(item);
+        });
+
+      /* Se não houver camadas para mostrar */
+      if (body.children.length === 0) {
+        const emptyMsg = document.createElement("div");
+        emptyMsg.className = "ol-editor-layer-control-empty";
+        emptyMsg.textContent = "Nenhuma camada configurada";
+        emptyMsg.style.cssText =
+          "padding: 10px; color: #6c757d; text-align: center;";
+        body.appendChild(emptyMsg);
+      }
+
+      /* Função toggle */
+      function toggleLayerControl() {
+        const allBodies = document.querySelectorAll("#layer_control_body");
+        const allIcons = document.querySelectorAll("#layer_toggle_btn i");
+
+        if (allBodies.length === 0 || allIcons.length === 0) return;
+
+        const bodyEl = allBodies[allBodies.length - 1];
+        const icon = allIcons[allIcons.length - 1];
+
+        if (!bodyEl || !icon) return;
+
+        if (bodyEl.style.display === "none") {
+          bodyEl.style.display = "block";
+          icon.className = "fas fa-chevron-up";
+          _isLayerControlCollapsed = false;
+        } else {
+          bodyEl.style.display = "none";
+          icon.className = "fas fa-chevron-down";
+          _isLayerControlCollapsed = true;
+        }
+        _updateConfigField();
+      }
+
+      toggleBtn.onclick = function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleLayerControl();
+      };
+
+      header.onclick = function (e) {
+        if (e.target === toggleBtn || toggleBtn.contains(e.target)) {
+          return;
+        }
+        toggleLayerControl();
+      };
+
+      /* Drag */
+      let isDragging = false;
+      let offsetX, offsetY;
+
+      header.addEventListener("mousedown", function (e) {
+        if (e.target === toggleBtn || toggleBtn.contains(e.target)) {
+          return;
+        }
+
+        isDragging = true;
+        const rect = container.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        container.style.cursor = "grabbing";
+        container.style.transition = "none";
+        e.preventDefault();
+      });
+
+      document.addEventListener("mousemove", function (e) {
+        if (!isDragging) return;
+
+        const mapContainer = document.getElementById(_map.getTarget());
+        if (!mapContainer) return;
+
+        const mapRect = mapContainer.getBoundingClientRect();
+
+        let newX = e.clientX - mapRect.left - offsetX;
+        let newY = e.clientY - mapRect.top - offsetY;
+
+        newX = Math.max(
+          0,
+          Math.min(mapRect.width - container.offsetWidth, newX),
+        );
+        newY = Math.max(
+          0,
+          Math.min(mapRect.height - container.offsetHeight, newY),
+        );
+
+        container.style.left = newX + "px";
+        container.style.top = newY + "px";
+        container.style.bottom = "auto";
+        container.style.right = "auto";
+      });
+
+      document.addEventListener("mouseup", function () {
+        if (isDragging) {
+          isDragging = false;
+          container.style.cursor = "default";
+          container.style.transition = "all 0.1s ease";
+        }
+      });
+
+      /* Adiciona ao container do mapa */
+      const mapContainer = document.getElementById(_map.getTarget());
+      if (mapContainer) {
+        mapContainer.appendChild(container);
+        _layerControlContainer = container;
+      }
     }
 
     function _initHighlightLayer() {
@@ -199,26 +812,9 @@
           /* 3. Estilo padrão para outras features (como lotes) */
           return new ol.style.Style({
             stroke: new ol.style.Stroke({
-              /*
-                            color: "rgba(70, 130, 180, 0.8)",
-                            */
               width: 0.1,
             }),
-
-            // Sem fill - apenas contorno
           });
-
-          /*
-                    return new ol.style.Style({
-                        stroke: new ol.style.Stroke({
-                            color: "rgba(255, 255, 255, 0.1)",
-                            width: 1,
-                        }),
-                        fill: new ol.style.Fill({
-                            color: "rgba(255, 255, 255, 0.1)",
-                        }),
-                    });
-                    */
         },
       });
 
@@ -279,7 +875,7 @@
             duration: 250,
           },
         });
-        _popup.setPosition(undefined); // Garante que comece oculto
+        _popup.setPosition(undefined); /* Garante que comece oculto */
         _map.addOverlay(_popup);
 
         /* Adiciona método show para compatibilidade */
@@ -325,11 +921,11 @@
       try {
         console.log("_handleMapClick", e);
 
-        // 1. Extrai os parâmetros da URL no formato array
+        /* 1. Extrai os parâmetros da URL no formato array */
         const urlParams = new URLSearchParams(window.location.search);
         const params = {};
 
-        // Processa parâmetros no formato 0[param]
+        /* Processa parâmetros no formato 0[param] */
         urlParams.forEach((value, key) => {
           const match = key.match(/^(\d+)\[(.+)\]$/);
           if (match) {
@@ -343,11 +939,11 @@
         });
         console.log("Parâmetros processados:", params);
 
-        // 2. Verifica os parâmetros específicos (considerando o primeiro conjunto [0])
+        /* 2. Verifica os parâmetros específicos (considerando o primeiro conjunto [0]) */
         const config = params["0"] || {};
         console.log("config", config);
 
-        // No método _handleMapClick, você pode acessar assim:
+        /* No método _handleMapClick, você pode acessar assim: */
         const shouldUpdateCoords = _map._shouldUpdateCoords;
         const shouldAddPin = _map._shouldAddPin;
         const shouldShowPopup = _map._shouldShowPopup;
@@ -419,30 +1015,30 @@
               _showPopupWithLoader(
                 coordinate,
                 `class=${featureData.control}&method=${popupMethod}` +
-                  `&lat=${coordinate.lat}&lng=${coordinate.lng}`
+                  `&lat=${coordinate.lat}&lng=${coordinate.lng}`,
               );
 
               console.log(
                 "_showPopupWithLoader(" +
                   `${coordinate}, class=${featureData.control}&method=${popupMethod}&lat=${coordinate.lat}&lng=${coordinate.lng}` +
-                  ")"
+                  ")",
               );
             } else {
               console.log(
                 "Mostrando popup com popupClassName:",
-                popupClassName
+                popupClassName,
               );
 
               _showPopupWithLoader(
                 coordinate,
                 `class=${popupClassName}&method=${popupMethod}` +
-                  `&lat=${coordinate.lat}&lng=${coordinate.lng}`
+                  `&lat=${coordinate.lat}&lng=${coordinate.lng}`,
               );
 
               console.log(
                 "_showPopupWithLoader(" +
                   `${coordinate}, class=${popupClassName}&method=${popupMethod}&lat=${coordinate.lat}&lng=${coordinate.lng}` +
-                  ")"
+                  ")",
               );
             }
           }
@@ -488,35 +1084,35 @@
     function _updateCoordinateFields(coordinate) {
       console.log("_updateCoordinateFields(coordinate):", coordinate);
 
-      // Busca por campos lat/lon e pega o último elemento de cada
+      /* Busca por campos lat/lon e pega o último elemento de cada */
       let latField = null;
       let lonField = null;
 
-      // Busca todos os campos com id="lat" ou name="lat"
+      /* Busca todos os campos com id="lat" ou name="lat" */
       const allLatFields = document.querySelectorAll(
         '[id="lat"], [name="lat"]',
       );
       if (allLatFields.length > 0) {
-        // Pega o último campo (mais recente no DOM)
+        /* Pega o último campo (mais recente no DOM) */
         latField = allLatFields[allLatFields.length - 1];
         console.log(
           `Campo lat encontrado (${allLatFields.length} total, usando último)`,
         );
       }
 
-      // Busca todos os campos com id="lon" ou name="lon"
+      /* Busca todos os campos com id="lon" ou name="lon" */
       const allLonFields = document.querySelectorAll(
         '[id="lon"], [name="lon"]',
       );
       if (allLonFields.length > 0) {
-        // Pega o último campo (mais recente no DOM)
+        /* Pega o último campo (mais recente no DOM) */
         lonField = allLonFields[allLonFields.length - 1];
         console.log(
           `Campo lon encontrado (${allLonFields.length} total, usando último)`,
         );
       }
 
-      // Fallback: procura por campos com id contendo "lat" ou "lon"
+      /* Fallback: procura por campos com id contendo "lat" ou "lon" */
       if (!latField) {
         const allLatPattern = document.querySelectorAll(
           '[id*="lat"], [name*="lat"]',
@@ -541,12 +1137,12 @@
 
       if (latField) {
         latField.value = coordinate.lat;
-        // Dispara eventos de change
+        /* Dispara eventos de change */
         $(latField).trigger("change");
         latField.dispatchEvent(new Event("change", { bubbles: true }));
         console.log("Campo lat atualizado:", coordinate.lat);
 
-        // Adiciona uma classe para indicar que foi atualizado (opcional)
+        /* Adiciona uma classe para indicar que foi atualizado (opcional) */
         latField.classList.add("coordinate-updated");
         setTimeout(() => latField.classList.remove("coordinate-updated"), 500);
       } else {
@@ -555,12 +1151,12 @@
 
       if (lonField) {
         lonField.value = coordinate.lng;
-        // Dispara eventos de change
+        /* Dispara eventos de change */
         $(lonField).trigger("change");
         lonField.dispatchEvent(new Event("change", { bubbles: true }));
         console.log("Campo lon atualizado:", coordinate.lng);
 
-        // Adiciona uma classe para indicar que foi atualizado (opcional)
+        /* Adiciona uma classe para indicar que foi atualizado (opcional) */
         lonField.classList.add("coordinate-updated");
         setTimeout(() => lonField.classList.remove("coordinate-updated"), 500);
       } else {
@@ -588,14 +1184,14 @@
         coordinate,
         `class=VigEpiMinhasAtividades&method=generatePopupStructure&lat=${coordinate.lat}` +
           `&lng=${coordinate.lng}&programacao_id=${programacao_id}` +
-          `&inscricao_imobiliaria=${inscricao_imobiliaria}`
+          `&inscricao_imobiliaria=${inscricao_imobiliaria}`,
       );
     }
 
     function _handleRecognitionFeatureClick(
       coordinate,
       className = "VigEpiReconhecimentoGeograficoForm",
-      method = "generatePopupStructure"
+      method = "generatePopupStructure",
     ) {
       console.log("_handleRecognitionFeatureClick");
       _updateCoordinateFields(coordinate);
@@ -603,7 +1199,7 @@
         coordinate,
         /*`class=VigEpiReconhecimentoGeograficoForm&method=generatePopupStructure` +*/
         `class=${className}&method=${method}` +
-          `&lat=${coordinate.lat}&lng=${coordinate.lng}`
+          `&lat=${coordinate.lat}&lng=${coordinate.lng}`,
       );
     }
 
@@ -612,69 +1208,17 @@
       console.log("coordinate:", coordinate);
       console.log("ajaxParams:", ajaxParams);
 
-      // Garante que as coordenadas estejam no formato esperado (EPSG:3857)
+      /* Garante que as coordenadas estejam no formato esperado (EPSG:3857) */
       const mapCoords = Array.isArray(coordinate)
         ? coordinate
         : ol.proj.fromLonLat([coordinate.lng, coordinate.lat]);
 
       console.log("mapCoords:", mapCoords);
 
-      // 1. Cria o container principal do popup
+      /* 1. Cria o container principal do popup */
       const el = document.createElement("div");
 
-      // 2. [NOVO] ADICIONE O BOTÃO DE FECHAR AQUI (debug)
-      // const closeBtn = document.createElement("button");
-      // closeBtn.innerHTML = "X";
-      // Object.assign(closeBtn.style, {
-      //     position: "absolute",
-      //     top: "5px",
-      //     right: "5px",
-      //     background: "transparent",
-      //     border: "none",
-      //     cursor: "pointer",
-      //     fontSize: "16px",
-      //     fontWeight: "bold",
-      //     color: "#999",
-      // });
-      // closeBtn.onclick = () => {
-      //     if (_popup) {
-      //         _popup.setPosition(undefined); // Remove o popup
-      //     } else {
-      //         el.remove(); // Fallback se não usar o overlay do OpenLayers
-      //     }
-      // };
-      // el.appendChild(closeBtn);
-
-      // 3. Aplica estilos diretamente ao elemento
-      // Object.assign(el.style, {
-      //     position: "absolute",
-      //     backgroundColor: "white",
-      //     boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-      //     padding: "15px",
-      //     borderRadius: "10px",
-      //     border: "1px solid #cccccc",
-      //     minWidth: "180px",
-      //     maxWidth: "450px",
-      //     zIndex: "1000",
-      //     display: "none",
-      // });
-
-      // Adiciona a seta do popup (opcional)
-      // const arrow = document.createElement("div");
-      // Object.assign(arrow.style, {
-      //     position: "absolute",
-      //     bottom: "-30px",
-      //     left: "50%",
-      //     marginLeft: "-10px",
-      //     width: "0",
-      //     height: "0",
-      //     borderLeft: "10px solid transparent",
-      //     borderRight: "10px solid transparent",
-      //     borderTop: "10px solid white",
-      // });
-      // el.appendChild(arrow);
-
-      // Cria o conteúdo do popup
+      /* Cria o conteúdo do popup */
       const content = document.createElement("div");
       Object.assign(content.style, {
         maxHeight: "300px",
@@ -691,23 +1235,22 @@
           _setupPopupTabs(content);
 
           console.log("content: ", content);
-          // Mostra o popup somente após o conteúdo ser carregado
+          /* Mostra o popup somente após o conteúdo ser carregado */
           if (_popup) {
             try {
-              // Verifica se é um overlay do OpenLayers padrão
+              /* Verifica se é um overlay do OpenLayers padrão */
               if (_popup.setPosition && _popup.setElement) {
                 console.log("_popup.setPosition && _popup.setElement");
                 _popup.setPosition(mapCoords);
-                // _popup.setElement(el);
-              }
-              // Se for um popup customizado com método show
-              else if (typeof _popup.show === "function") {
+                /* _popup.setElement(el); */
+              } else if (typeof _popup.show === "function") {
+                /* Se for um popup customizado com método show */
                 console.log("_popup.show(mapCoords, el);");
                 _popup.show(mapCoords, el);
               }
             } catch (e) {
               console.error("Error showing popup:", e);
-              // Fallback extremo - adiciona diretamente ao body
+              /* Fallback extremo - adiciona diretamente ao body */
               document.body.appendChild(el);
               Object.assign(el.style, {
                 position: "fixed",
@@ -718,10 +1261,10 @@
             }
           }
         },
-        true
+        true,
       );
 
-      // Adiciona temporariamente para visualização imediata
+      /* Adiciona temporariamente para visualização imediata */
       if (_popup) {
         if (_popup.setPosition && _popup.setElement) {
           console.log("_popup.setPosition(mapCoords);");
@@ -729,7 +1272,7 @@
           _popup.setElement(el);
         }
       } else {
-        // Fallback caso o popup não exista
+        /* Fallback caso o popup não exista */
         console.log("Fallback caso o popup não exista");
         document.body.appendChild(el);
       }
@@ -743,7 +1286,7 @@
             $(e.target).tab("show");
           }
         },
-        false
+        false,
       );
     }
 
@@ -768,12 +1311,6 @@
     }
 
     function _addPin(marker, flyTo = true) {
-      /* Remove existing marker layer */
-      // _map.getLayers()
-      //     .getArray()
-      //     .filter((layer) => layer.get("name") === "pin")
-      //     .forEach((layer) => _map.removeLayer(layer));
-
       const lat = marker.lat;
       const lng = marker.lng;
 
@@ -787,7 +1324,7 @@
 
       const iconFeature = new ol.Feature({
         geometry: new ol.geom.Point(
-          ol.proj.transform([lat, lng], "EPSG:4326", "EPSG:3857")
+          ol.proj.transform([lat, lng], "EPSG:4326", "EPSG:3857"),
         ),
         name: marker.label || "",
       });
@@ -820,14 +1357,14 @@
     }
 
     function _highlightGeom(geom) {
-      // TODO: Verificar se é preciso limpar a fonte de destaque antes de adicionar novas features
-      // _highlightSource.clear();
+      /* TODO: Verificar se é preciso limpar a fonte de destaque antes de adicionar novas features */
+      /* _highlightSource.clear(); */
 
       const features = new ol.format.GeoJSON().readFeatures(geom, {
         featureProjection: "EPSG:3857",
       });
 
-      // Marca as features como customizadas
+      /* Marca as features como customizadas */
       features.forEach((f) => f.set("custom", true));
 
       _highlightSource.addFeatures(features);
@@ -838,21 +1375,21 @@
 
       console.log("Iniciando _flyTo - Zoom recebido:", zoom);
 
-      // 1. Processa as coordenadas
+      /* 1. Processa as coordenadas */
       const targetCoords = Array.isArray(location)
         ? ol.proj.fromLonLat(location)
         : location;
 
-      // 2. Define o zoom (com fallback para o zoom atual)
+      /* 2. Define o zoom (com fallback para o zoom atual) */
       const targetZoom =
         zoom !== null && !isNaN(zoom) ? Number(zoom) : _map.getView().getZoom();
 
       console.log("Zoom que será aplicado:", targetZoom);
 
-      // 3. Cancela qualquer animação em andamento
+      /* 3. Cancela qualquer animação em andamento */
       _map.getView().cancelAnimations();
 
-      // 4. Animação única combinando movimento e zoom
+      /* 4. Animação única combinando movimento e zoom */
       const animationOpts = {
         center: targetCoords,
         zoom: targetZoom,
@@ -868,12 +1405,12 @@
         "_configStroke - strokeColor:",
         strokeColor,
         "fillColor:",
-        fillColor
+        fillColor,
       );
 
       if (!_highlightSource) return;
 
-      // Atualiza apenas features customizadas
+      /* Atualiza apenas features customizadas */
       _highlightSource
         .getFeatures()
         .filter((feature) => feature.get("custom"))
@@ -887,7 +1424,7 @@
               fill: new ol.style.Fill({
                 color: fillColor,
               }),
-            })
+            }),
           );
         });
     }
@@ -947,6 +1484,138 @@
       }
     }
 
+    /**
+     * Ativa modo de edição de geometria
+     */
+    function enableGeometryEditing(geomData) {
+      const map = GeoMapApp.getMap();
+      if (!map) return;
+
+      /* Remove camada anterior */
+      const oldLayer = map
+        .getLayers()
+        .getArray()
+        .find((l) => l.get("name") === "edit_layer");
+      if (oldLayer) {
+        map.removeLayer(oldLayer);
+      }
+
+      /* Cria fonte */
+      const source = new ol.source.Vector();
+
+      if (geomData) {
+        const format = new ol.format.GeoJSON();
+        const features = format.readFeatures(geomData, {
+          featureProjection: "EPSG:3857",
+        });
+        source.addFeatures(features);
+      }
+
+      /* Cria camada */
+      const layer = new ol.layer.Vector({
+        source: source,
+        name: "edit_layer",
+        style: new ol.style.Style({
+          stroke: new ol.style.Stroke({
+            color: "#00ff00",
+            width: 3,
+          }),
+          fill: new ol.style.Fill({
+            color: "rgba(0, 255, 0, 0.1)",
+          }),
+        }),
+      });
+
+      map.addLayer(layer);
+
+      /* Adiciona interações de edição */
+      const modify = new ol.interaction.Modify({
+        source: source,
+        style: new ol.style.Style({
+          image: new ol.style.Circle({
+            radius: 5,
+            fill: new ol.style.Fill({
+              color: "#ff0000",
+            }),
+            stroke: new ol.style.Stroke({
+              color: "#ffffff",
+              width: 2,
+            }),
+          }),
+        }),
+      });
+      map.addInteraction(modify);
+
+      /* Armazena referências */
+      window._editLayer = layer;
+      window._editSource = source;
+      window._modifyInteraction = modify;
+
+      return { layer, source, modify };
+    }
+
+    /**
+     * Desativa modo de edição
+     */
+    function disableGeometryEditing() {
+      const map = GeoMapApp.getMap();
+      if (!map) return;
+
+      const layer = map
+        .getLayers()
+        .getArray()
+        .find((l) => l.get("name") === "edit_layer");
+      if (layer) {
+        map.removeLayer(layer);
+      }
+
+      if (window._modifyInteraction) {
+        map.removeInteraction(window._modifyInteraction);
+        delete window._modifyInteraction;
+      }
+
+      delete window._editLayer;
+      delete window._editSource;
+    }
+
+    /**
+     * Obtém geometria editada
+     */
+    function getEditedGeometry() {
+      if (!window._editSource) return null;
+
+      const features = window._editSource.getFeatures();
+      if (features.length === 0) return null;
+
+      const format = new ol.format.GeoJSON();
+      return format.writeFeatures(features, {
+        dataProjection: "EPSG:4326",
+        featureProjection: "EPSG:3857",
+      });
+    }
+
+    /**
+     * Salva geometria editada via AJAX
+     */
+    function saveEditedGeometry(rg_id, callback) {
+      const geom = getEditedGeometry();
+      if (!geom) {
+        alert("Nenhuma geometria para salvar.");
+        return;
+      }
+
+      $.post(
+        "index.php?class=VigEpiGeometriaEditor&method=onSaveGeometry",
+        {
+          rg_id: rg_id,
+          geom: geom,
+        },
+        function (response) {
+          if (callback) callback(response);
+        },
+      );
+    }
+
     /* Classes de Controles Customizados */
     class MousePositionControl extends ol.control.Control {
       constructor() {
@@ -954,7 +1623,7 @@
         container.classList.add(
           "custom-control",
           "rectangle-medium-ctrl",
-          "Mouse-Position-Control"
+          "Mouse-Position-Control",
         );
         $(container)
           .attr("id", "mousepositioncontainer")
@@ -1088,7 +1757,7 @@
               features.forEach((f) => f.set("source", "wfs"));
 
               _highlightSource.addFeatures(features);
-            }
+            },
           );
         }
       }
@@ -1096,12 +1765,6 @@
       _onHighlightFeature(e) {
         if (!e || !e.pixel) return;
         if (!this.enabled) return;
-
-        /*
-                console.log("FeatureInspectControl - _onHighlightFeature()");
-                console.log("e:");
-                console.log(e);
-                */
 
         _hoverFeatures.forEach((feat) => feat.setStyle(null));
         _hoverFeatures = [];
@@ -1136,40 +1799,8 @@
       },
 
       addLayer: function (name, config) {
-        console.log("addLayer", name, config);
-        let layer;
-
-        if (config.type === "wms") {
-          layer = new ol.layer.Tile({
-            name: name,
-            source: new ol.source.TileWMS({
-              url: config.url,
-              params: {
-                LAYERS: config.layers,
-                TILED: true,
-                TRANSPARENT: true,
-              },
-              serverType: "geoserver",
-              crossOrigin: "anonymous",
-            }),
-          });
-        } else if (config.type === "xyz") {
-          layer = new ol.layer.Tile({
-            name: name,
-            source: new ol.source.XYZ({
-              url: config.url,
-              maxZoom: config.maxZoom || 19,
-              crossOrigin: "anonymous",
-            }),
-          });
-        }
-
-        if (layer) {
-          layer.setZIndex(config.zIndex || 0);
-          _map.addLayer(layer);
-          _layers[name] = layer;
-        }
-
+        console.log("addLayer chamado:", name, config);
+        _addLayerInternal(name, config);
         return this;
       },
 
@@ -1177,8 +1808,19 @@
         if (_layers[name]) {
           _map.removeLayer(_layers[name]);
           delete _layers[name];
+          delete _layerConfigs[name];
+
+          /* Atualiza controle de camadas */
+          _updateLayerControl();
+
+          /* Atualiza configuração */
+          _updateConfigField();
         }
         return this;
+      },
+
+      getLayers: function () {
+        return _layers;
       },
 
       getMap: function () {
@@ -1204,6 +1846,64 @@
         if (_highlightSource) {
           _highlightSource.clear();
         }
+      },
+
+      /* ======================================== */
+      /* MÉTODOS PARA CONFIGURAÇÃO               */
+      /* ======================================== */
+      saveConfig: function () {
+        _updateConfigField();
+        return _mapConfig;
+      },
+
+      restoreConfig: function (configData) {
+        _restoreMapConfig(configData);
+        return this;
+      },
+
+      getConfig: function () {
+        return _mapConfig;
+      },
+
+      setConfigField: function (fieldId) {
+        _configFieldId = fieldId;
+        return this;
+      },
+
+      showLayerControl: function (show) {
+        if (show && !_layerControlContainer) {
+          _addLayerControl();
+        } else if (!show && _layerControlContainer) {
+          _layerControlContainer.remove();
+          _layerControlContainer = null;
+        }
+        return this;
+      },
+
+      toggleLayerControl: function () {
+        if (_layerControlContainer) {
+          const allBodies = document.querySelectorAll("#layer_control_body");
+          const allIcons = document.querySelectorAll("#layer_toggle_btn i");
+
+          if (allBodies.length > 0 && allIcons.length > 0) {
+            const bodyEl = allBodies[allBodies.length - 1];
+            const icon = allIcons[allIcons.length - 1];
+
+            if (bodyEl && icon) {
+              if (bodyEl.style.display === "none") {
+                bodyEl.style.display = "block";
+                icon.className = "fas fa-chevron-up";
+                _isLayerControlCollapsed = false;
+              } else {
+                bodyEl.style.display = "none";
+                icon.className = "fas fa-chevron-down";
+                _isLayerControlCollapsed = true;
+              }
+              _updateConfigField();
+            }
+          }
+        }
+        return this;
       },
     };
   })();
@@ -1239,11 +1939,11 @@
     lat,
     radius,
     strokeColor,
-    fillColor
+    fillColor,
   ) {
     const circle = new ol.geom.Circle(
       ol.proj.transform([lon, lat], "EPSG:4326", "EPSG:3857"),
-      radius
+      radius,
     );
 
     const circleFeature = new ol.Feature(circle);

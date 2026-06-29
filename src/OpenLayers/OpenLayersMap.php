@@ -11,7 +11,7 @@ use stdClass;
 
 /**
  * OpenLayersMap Container
- * @version 1.1
+ * @version 1.3
  * @author Marcelo Barreto Nees
  * @copyright Copyright (c) 2025 Marcelo Barreto Nees <marcelo.linux@gmail.com>
  * @license MIT
@@ -31,6 +31,14 @@ class OpenLayersMap extends TElement
     protected $shouldUpdateCoords = true;
     protected $shouldAddPin = true;
     protected $shouldShowPopup = false;
+
+    /* ======================================== */
+    /* PROPRIEDADES PARA CONFIGURAÇÃO          */
+    /* ======================================== */
+    protected $configFieldId = null;
+    protected $showLayerControl = true;
+    protected $restoreConfigData = null;
+
     /**
      * Class Constructor
      */
@@ -43,7 +51,7 @@ class OpenLayersMap extends TElement
         if (!empty($lng)) $this->lng = $lng;
         if (!empty($z)) $this->z = $z;
 
-        // Classe e método para geração do popup
+        /* Classe e método para geração do popup */
         if ($this->popupClassName) {
             $this->javascript .= "GeoMapApp.getMap()._popupClassName = '{$this->popupClassName}';";
         }
@@ -51,7 +59,7 @@ class OpenLayersMap extends TElement
             $this->javascript .= "GeoMapApp.getMap()._popupMethod = '{$this->popupMethod}';";
         }
 
-        // Valores padrão
+        /* Valores padrão */
         $this->javascript .= "
             GeoMapApp.getMap()._shouldUpdateCoords = " . ($this->shouldUpdateCoords ? 'true' : 'false') . ";
             GeoMapApp.getMap()._shouldAddPin = " . ($this->shouldAddPin ? 'true' : 'false') . ";
@@ -61,11 +69,12 @@ class OpenLayersMap extends TElement
 
     public function createMap()
     {
-        // Verifica se os arquivos necessários existem
+        /* Verifica se os arquivos necessários existem */
         $requiredFiles = [
             'vendor/marcelonees/plugins/src/OpenLayers/ol.js',
             'vendor/marcelonees/plugins/src/OpenLayers/turf.min.js',
-            'vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js'
+            'vendor/marcelonees/plugins/src/OpenLayers/ol-popup.js',
+            'vendor/marcelonees/plugins/src/OpenLayers/olmap.js'
         ];
 
         foreach ($requiredFiles as $file) {
@@ -75,12 +84,12 @@ class OpenLayersMap extends TElement
         }
 
         $requiredVersions = [
-            'ol' => '6.5.0',        // Versão do OpenLayers
-            'turf' => '5.1.6',      // Versão do Turf.js
-            'ol-popup' => '3.0.0'   // Versão do Popup
+            'ol' => '6.5.0',        /* Versão do OpenLayers */
+            'turf' => '5.1.6',      /* Versão do Turf.js */
+            'ol-popup' => '3.0.0'   /* Versão do Popup */
         ];
 
-        // Adicione esta função para verificar versões
+        /* Adicione esta função para verificar versões */
         $versionCheckJS = "
             function checkLibraryVersions() {
                 const errors = [];
@@ -125,10 +134,15 @@ class OpenLayersMap extends TElement
         ";
 
         $mapId = $this->id;
+        $configFieldId = $this->configFieldId ? $this->configFieldId : '';
+        $showLayerControl = $this->showLayerControl ? 'true' : 'false';
+        $restoreConfigData = $this->restoreConfigData ? json_encode($this->restoreConfigData) : 'null';
 
         /* Garante que o CSS seja carregado primeiro */
         TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.css');
         TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.css');
+        /* Adiciona CSS do mapa se não existir */
+        TStyle::importFromFile('vendor/marcelonees/topenlayerseditor/src/OpenLayersEditor/ol-editor.css');
 
         /* Cria um sistema de carregamento robusto com verificações de segurança */
         TScript::create("
@@ -154,15 +168,21 @@ class OpenLayersMap extends TElement
                     throw new Error('GeoMapApp não está definido');
                 }
                 
-                /* Inicializa o mapa */
-                GeoMapApp.init({
+                /* Configuração do mapa */
+                var config = {
                     target: '{$mapId}',
                     center: {
                         lat: {$this->lat},
                         lng: {$this->lng}
                     },
-                    zoom: {$this->z}
-                });
+                    zoom: {$this->z},
+                    configField: '{$configFieldId}',
+                    showLayerControl: {$showLayerControl},
+                    restoreConfig: {$restoreConfigData}
+                };
+                
+                /* Inicializa o mapa */
+                GeoMapApp.init(config);
                 
                 /* Processa o JavaScript adicional com tratamento de erros */
                 try {
@@ -226,14 +246,14 @@ class OpenLayersMap extends TElement
      */
     public function show()
     {
-        // Set container dimensions
+        /* Set container dimensions */
         $style = new TStyle("#{$this->id}");
         $style->width = $this->width;
         $style->height = $this->height;
         $style->border = '1px solid #ccc';
         $style->show();
 
-        // Create map container
+        /* Create map container */
         $content = new TElement('div');
         $content->id = $this->id;
         $content->class = 'openlayers-map';
@@ -243,14 +263,178 @@ class OpenLayersMap extends TElement
         parent::show();
     }
 
+    /* ======================================== */
+    /* MÉTODOS PARA CONFIGURAÇÃO               */
+    /* ======================================== */
 
+    /**
+     * Define o campo que armazenará a configuração do mapa
+     * @param string $fieldId ID do campo hidden
+     * @return OpenLayersMap
+     */
+    public function setConfigField($fieldId)
+    {
+        $this->configFieldId = $fieldId;
+        return $this;
+    }
+
+    /**
+     * Define se deve mostrar o controle de camadas
+     * @param bool $show
+     * @return OpenLayersMap
+     */
+    public function setShowLayerControl($show)
+    {
+        $this->showLayerControl = (bool) $show;
+        return $this;
+    }
+
+    /**
+     * Define os dados de configuração para restauração
+     * @param mixed $configData Array ou JSON com configurações
+     * @return OpenLayersMap
+     */
+    public function setRestoreConfig($configData)
+    {
+        if (is_array($configData)) {
+            $this->restoreConfigData = json_encode($configData);
+        } else {
+            $this->restoreConfigData = $configData;
+        }
+        return $this;
+    }
+
+    /**
+     * Restaura configurações com delay opcional
+     * @param mixed $configData
+     * @param int $delay Delay em milissegundos
+     * @return OpenLayersMap
+     */
+    public function restoreConfig($configData = null, $delay = 1000)
+    {
+        if ($configData !== null) {
+            $this->setRestoreConfig($configData);
+        }
+
+        if ($this->restoreConfigData) {
+            $configJson = is_string($this->restoreConfigData) ?
+                $this->restoreConfigData :
+                json_encode($this->restoreConfigData);
+
+            TScript::create("
+                setTimeout(function() {
+                    if (typeof GeoMapApp !== 'undefined' && GeoMapApp.restoreConfig) {
+                        console.log('🔄 Restaurando configurações via método PHP...');
+                        GeoMapApp.restoreConfig({$configJson});
+                    } else {
+                        console.warn('⚠️ GeoMapApp não disponível para restaurar');
+                    }
+                }, {$delay});
+            ");
+        }
+
+        return $this;
+    }
+
+    /**
+     * Salva a configuração atual do mapa
+     * @return OpenLayersMap
+     */
+    public function saveConfig()
+    {
+        TScript::create("
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.saveConfig) {
+                GeoMapApp.saveConfig();
+                console.log('💾 Configuração salva');
+            }
+        ");
+        return $this;
+    }
+
+    /**
+     * Alterna a visibilidade do controle de camadas
+     * @return OpenLayersMap
+     */
+    public function toggleLayerControl()
+    {
+        TScript::create("
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.toggleLayerControl) {
+                GeoMapApp.toggleLayerControl();
+            }
+        ");
+        return $this;
+    }
+
+    /* ======================================== */
+    /* MÉTODOS DE CAMADAS                      */
+    /* ======================================== */
+
+    /**
+     * Add a layer to the map
+     * @param string $layerName Unique name for the layer
+     * @param array $config Layer configuration options
+     * @return OpenLayersMap
+     */
+    public function addLayer($layerName, array $config = [])
+    {
+        /* Default configuration */
+        $defaultConfig = [
+            'type'      => 'tile',
+            'visible'   => true,
+            'opacity'   => 1,
+            'zIndex'    => 0,
+            'source'    => 'osm',
+            'title'     => $layerName
+        ];
+
+        $config = array_merge($defaultConfig, $config);
+
+        /* Adiciona a camada via JavaScript */
+        $layerConfig = json_encode($config);
+        $safeName = addslashes($layerName);
+
+        $this->javascript .= "
+            /* Adiciona camada via GeoMapApp */
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addLayer) {
+                console.log('📌 Adicionando camada via PHP: {$safeName}');
+                GeoMapApp.addLayer('{$safeName}', {$layerConfig});
+            } else {
+                console.warn('⚠️ GeoMapApp não disponível para adicionar camada: {$safeName}');
+            }
+        ";
+
+        return $this;
+    }
+
+    /**
+     * Remove a layer from the map
+     * @param string $layerName Name of the layer to remove
+     * @return OpenLayersMap
+     */
+    public function removeLayer($layerName)
+    {
+        $safeName = addslashes($layerName);
+
+        $this->javascript .= "
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.removeLayer) {
+                console.log('🗑️ Removendo camada: {$safeName}');
+                GeoMapApp.removeLayer('{$safeName}');
+            }
+        ";
+
+        return $this;
+    }
+
+    /**
+     * Add a marker to the map
+     */
     public function addMarker($lat, $lng, $label = '')
     {
-        // Garantir que os valores sejam numéricos
+        /* Garantir que os valores sejam numéricos */
         $lat = (float)$lat;
         $lng = (float)$lng;
 
-        // Sanitizar o label
+        /* Sanitizar o label */
         $safeLabel = addslashes($label);
 
         $this->javascript .= "
@@ -301,272 +485,6 @@ class OpenLayersMap extends TElement
         TScript::create("$this->javascript");
     }
 
-
-    /**
-     * Add a layer to the map
-     * @param string $layerName Unique name for the layer
-     * @param array $config Layer configuration options
-     * @return OpenLayersMap
-     */
-    public function addLayer($layerName, array $config = [])
-    {
-        // Default configuration
-        $defaultConfig = [
-            'type'      => 'tile',
-            'visible'   => true,
-            'opacity'   => 1,
-            'zIndex'    => 0,
-            'source'    => 'osm'
-        ];
-
-        $config = array_merge($defaultConfig, $config);
-
-        // Generate the JavaScript code based on layer type
-        switch ($config['type']) {
-            case 'wms':
-                $this->javascript .= $this->createWMSLayerJS($layerName, $config);
-                break;
-
-            case 'xyz':
-                $this->javascript .= $this->createXYZLayerJS($layerName, $config);
-                break;
-
-            case 'vector':
-                $this->javascript .= $this->createVectorLayerJS($layerName, $config);
-                break;
-
-            default: /* tile */
-                $this->javascript .= $this->createTileLayerJS($layerName, $config);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Create JavaScript code for WMS layer
-     */
-    protected function createWMSLayerJS($layerName, $config)
-    {
-        $params = json_encode($config['params'] ?? []);
-        $url = addslashes($config['url'] ?? '');
-        $serverType = addslashes($config['serverType'] ?? 'geoserver');
-        $crossOrigin = addslashes($config['crossOrigin'] ?? 'anonymous');
-
-        $opacity = $config['opacity'] ?? 0.8;
-        $zIndex  = $config['zIndex']  ?? 5;
-        $visible = $config['visible'] ? 'true' : 'false';
-
-        return "
-            try {
-                var wmsLayer = new ol.layer.Tile({
-                    source: new ol.source.TileWMS({
-                        url: '{$url}',
-                        params: {$params},
-                        serverType: '{$serverType}',
-                        crossOrigin: '{$crossOrigin}',
-                        transition: 0
-                    }),
-                    opacity: {$opacity},
-                    zIndex: {$zIndex},
-                    visible: {$visible}
-                });
-                
-                /* Add layer to map */
-                if (typeof GeoMapApp !== 'undefined' && GeoMapApp.getMap()) {
-                    GeoMapApp.getMap().addLayer(wmsLayer);
-                    console.log('WMS layer added: {$layerName}');
-                } else {
-                    console.error('GeoMapApp not available for adding layer');
-                }
-                
-                /* Error handling */
-                wmsLayer.getSource().on('tileloaderror', function(event) {
-                    console.error('Tile load error for layer {$layerName}:', event);
-                });
-            } catch(e) {
-                console.error('Error adding WMS layer {$layerName}:', e);
-            }
-        ";
-    }
-
-    /**
-     * Create JavaScript code for Vector layer
-     */
-    protected function createVectorLayerJS($layerName, $config)
-    {
-        $url = addslashes($config['url'] ?? '');
-        $format = addslashes($config['format'] ?? 'geojson');
-
-        $opacity = $config['opacity'] ?? 0.8;
-        $zIndex  = $config['zIndex']  ?? 5;
-        $visible = $config['visible'] ? 'true' : 'false';
-
-        // Processar estilo se fornecido
-        $styleJS = 'null';
-        if (!empty($config['style'])) {
-            $styleJS = json_encode($config['style']);
-        }
-
-        return "
-        try {
-            var vectorSource = new ol.source.Vector({
-                url: '{$url}',
-                format: new ol.format.{$format}()
-            });
-            
-            var vectorLayer = new ol.layer.Vector({
-                source: vectorSource,
-                style: {$styleJS},
-                opacity: {$opacity},
-                zIndex: {$zIndex},
-                visible: {$visible}
-            });
-            
-            /* Add layer to map */
-            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.getMap()) {
-                GeoMapApp.getMap().addLayer(vectorLayer);
-                console.log('Vector layer added: {$layerName}');
-                
-                /* Tratar erros de carregamento */
-                vectorSource.on('change:state', function() {
-                    if (vectorSource.getState() === 'error') {
-                        console.error('Failed to load vector layer: {$layerName}');
-                    }
-                });
-            } else {
-                console.error('GeoMapApp not available for adding layer');
-            }
-        } catch(e) {
-            console.error('Error adding Vector layer {$layerName}:', e);
-        }
-    ";
-    }
-
-    /**
-     * Create JavaScript code for Tile layer
-     */
-    protected function createTileLayerJS($layerName, $config)
-    {
-        $opacity = $config['opacity'] ?? 0.8;
-        $zIndex  = $config['zIndex']  ?? 5;
-        $visible = $config['visible'] ? 'true' : 'false';
-
-        // Configuração baseada no tipo de fonte
-        switch ($config['source']) {
-            case 'bing':
-                $key = addslashes($config['key'] ?? '');
-                $imagerySet = addslashes($config['imagerySet'] ?? 'Aerial');
-
-                return "
-                try {
-                    var tileLayer = new ol.layer.Tile({
-                        source: new ol.source.BingMaps({
-                            key: '{$key}',
-                            imagerySet: '{$imagerySet}'
-                        }),
-                        opacity: {$opacity},
-                        zIndex: {$zIndex},
-                        visible: {$visible}
-                    });
-                    
-                    /* Add layer to map */
-                    if (typeof GeoMapApp !== 'undefined' && GeoMapApp.getMap()) {
-                        GeoMapApp.getMap().addLayer(tileLayer);
-                        console.log('Bing Maps layer added: {$layerName}');
-                    }
-                } catch(e) {
-                    console.error('Error adding Bing Maps layer {$layerName}:', e);
-                }
-            ";
-
-            case 'mapbox':
-                $accessToken = addslashes($config['accessToken'] ?? '');
-                $mapId = addslashes($config['mapId'] ?? 'mapbox.streets');
-
-                return "
-                try {
-                    var tileLayer = new ol.layer.Tile({
-                        source: new ol.source.XYZ({
-                            url: 'https://api.mapbox.com/styles/v1/mapbox/{$mapId}/tiles/{z}/{x}/{y}?access_token={$accessToken}'
-                        }),
-                        opacity: {$opacity},
-                        zIndex: {$zIndex},
-                        visible: {$visible}
-                    });
-                    
-                    /* Add layer to map */
-                    if (typeof GeoMapApp !== 'undefined' && GeoMapApp.getMap()) {
-                        GeoMapApp.getMap().addLayer(tileLayer);
-                        console.log('Mapbox layer added: {$layerName}');
-                    }
-                } catch(e) {
-                    console.error('Error adding Mapbox layer {$layerName}:', e);
-                }
-            ";
-
-            default: // OSM
-                return "
-                try {
-                    var tileLayer = new ol.layer.Tile({
-                        source: new ol.source.OSM(),
-                        opacity: {$opacity},
-                        zIndex: {$zIndex},
-                        visible: {$visible}
-                    });
-                    
-                    /* Add layer to map */
-                    if (typeof GeoMapApp !== 'undefined' && GeoMapApp.getMap()) {
-                        GeoMapApp.getMap().addLayer(tileLayer);
-                        console.log('OSM layer added: {$layerName}');
-                    }
-                } catch(e) {
-                    console.error('Error adding OSM layer {$layerName}:', e);
-                }
-            ";
-        }
-    }
-
-    /**
-     * Create JavaScript code for XYZ layer
-     */
-    protected function createXYZLayerJS($layerName, $config)
-    {
-        $url = addslashes($config['url'] ?? '');
-        $attributions = isset($config['attributions']) ? "'" . addslashes($config['attributions']) . "'" : 'null';
-
-        $maxZoom  = $config['maxZoom'] ?? 19;
-        $minZoom  = $config['minZoom'] ?? 0;
-        $tileSize = $config['tileSize'] ?? 256; // Padrão 256x256 se não especificado
-        $opacity  = $config['opacity'] ?? 0.8;
-        $zIndex   = $config['zIndex']  ?? 5;
-        $visible  = $config['visible'] ?? true ? 'true' : 'false';
-
-        return "
-            try {
-                var xyzLayer = new ol.layer.Tile({
-                    source: new ol.source.XYZ({
-                        url: '{$url}',
-                        maxZoom: {$maxZoom},
-                        minZoom: {$minZoom},
-                        tileSize: {$tileSize},
-                        attributions: {$attributions}
-                    }),
-                    opacity: {$opacity},
-                    zIndex: {$zIndex},
-                    visible: {$visible}
-                });
-                
-                if (typeof GeoMapApp !== 'undefined' && GeoMapApp.getMap()) {
-                    GeoMapApp.getMap().addLayer(xyzLayer);
-                    console.log('XYZ layer added: {$layerName}');
-                }
-            } catch(e) {
-                console.error('Error adding XYZ layer {$layerName}:', e);
-            }
-        ";
-    }
-
-
     /**
      * Adiciona um mapa de calor ao mapa
      * @param array $points Array de pontos no formato [[lon, lat, intensity], ...]
@@ -575,7 +493,7 @@ class OpenLayersMap extends TElement
      */
     public function addHeatmap(array $points, array $config = [])
     {
-        // Configurações padrão
+        /* Configurações padrão */
         $defaultConfig = [
             'radius' => 15,
             'blur' => 15,
@@ -587,7 +505,7 @@ class OpenLayersMap extends TElement
 
         $config = array_merge($defaultConfig, $config);
 
-        // Prepara os pontos no formato adequado
+        /* Prepara os pontos no formato adequado */
         $pointsJS = json_encode($points);
         $gradientJS = json_encode($config['gradient']);
 
@@ -626,12 +544,20 @@ class OpenLayersMap extends TElement
                     radius: {$config['radius']},
                     gradient: {$gradientJS},
                     minOpacity: {$config['minOpacity']},
-                    zIndex: {$config['zIndex']}
+                    zIndex: {$config['zIndex']},
+                    name: 'heatmap'
                 });
                 
                 /* Adiciona ao mapa */
                 if (GeoMapApp && GeoMapApp.getMap()) {
-                    GeoMapApp.getMap().addLayer(heatmapLayer);
+                    GeoMapApp.addLayer('heatmap', {
+                        type: 'heatmap',
+                        blur: {$config['blur']},
+                        radius: {$config['radius']},
+                        gradient: {$gradientJS},
+                        minOpacity: {$config['minOpacity']},
+                        zIndex: {$config['zIndex']}
+                    });
                     console.log('Camada de heatmap adicionada com sucesso');
                 } else {
                     console.error('Não foi possível acessar o mapa principal');
@@ -688,36 +614,34 @@ class OpenLayersMap extends TElement
 
     public function parseGeoJson($geom)
     {
-        // Primeiro decode para remover escapes (se necessário)
+        /* Primeiro decode para remover escapes (se necessário) */
         $decoded = json_decode($geom);
 
-        // Se ainda for string (caso de escapes), faz decode novamente
+        /* Se ainda for string (caso de escapes), faz decode novamente */
         if (is_string($decoded)) {
             $decoded = json_decode($decoded);
         }
 
-        // Verifica se é um objeto válido
+        /* Verifica se é um objeto válido */
         if (!is_object($decoded)) {
             throw new Exception("Formato GeoJSON inválido");
         }
 
-        // Caso FeatureCollection
+        /* Caso FeatureCollection */
         if ($decoded->type === 'FeatureCollection') {
-            // Pega a primeira feature (você pode adaptar para múltiplas features se necessário)
+            /* Pega a primeira feature (você pode adaptar para múltiplas features se necessário) */
             if (empty($decoded->features)) {
                 throw new Exception("FeatureCollection sem features");
             }
 
             $feature = $decoded->features[0];
-            return $feature->geometry; // Retorna o objeto geometry
+            return $feature->geometry; /* Retorna o objeto geometry */
         }
-        // Caso Feature individual
-        elseif ($decoded->type === 'Feature') {
-            return $decoded->geometry; // Retorna o objeto geometry
+        /* Caso Feature individual */ elseif ($decoded->type === 'Feature') {
+            return $decoded->geometry; /* Retorna o objeto geometry */
         }
-        // Caso direto (Geometry Object)
-        else {
-            return $decoded; // Retorna o próprio objeto (já é a geometria)
+        /* Caso direto (Geometry Object) */ else {
+            return $decoded; /* Retorna o próprio objeto (já é a geometria) */
         }
     }
 
@@ -765,7 +689,7 @@ class OpenLayersMap extends TElement
                 $geoJson && isset($geoJson->type) && $geoJson->type === 'FeatureCollection'
                 && isset($geoJson->features) && count($geoJson->features) > 0
             ) {
-                $geoJson = $geoJson->features[0]; // Usa a primeira feature
+                $geoJson = $geoJson->features[0]; /* Usa a primeira feature */
             }
 
             /* Verifica se é um MultiLineString com features incorporadas */
@@ -785,7 +709,7 @@ class OpenLayersMap extends TElement
                 if (!isset($geoJson->coordinates) || !is_array($geoJson->coordinates)) {
                     throw new Exception('Estrutura de Polygon inválida');
                 }
-                // Verifica se tem pelo menos um anel com pelo menos 4 pontos (polígono fechado)
+                /* Verifica se tem pelo menos um anel com pelo menos 4 pontos (polígono fechado) */
                 if (count($geoJson->coordinates[0]) < 4) {
                     throw new Exception('Polygon deve ter pelo menos 4 pontos no anel exterior');
                 }
@@ -798,11 +722,6 @@ class OpenLayersMap extends TElement
                 ];
             }
 
-            // echo '<pre>';
-            // print_r($geoJson);
-            // echo '</pre>';
-
-            // if (!$geoJson) {
             if (!$geoJson || !isset($geoJson->geometry) || !isset($geoJson->geometry->coordinates)) {
                 throw new Exception('Geometria inválida. Deve ser um objeto GeoJSON válido.');
             }
@@ -852,8 +771,6 @@ class OpenLayersMap extends TElement
                                 /* Para polígonos, usa o centroide */
                                 popupAnchorPoint = turf.centroid(geometry.geometry).geometry.coordinates;
                             }
-
-                            /* console.log('popupAnchorPoint (turf): ', popupAnchorPoint); */
 
                         } catch (turfError) {
                             console.warn('Erro ao calcular ponto com turf:', turfError);
@@ -939,22 +856,9 @@ class OpenLayersMap extends TElement
                                     popupContent += '<i class=\"fas fa-edit\"></i> Editar';
                                     popupContent += '</a><br>';
                                 }
-                                
-                                /* Adiciona outras propriedades */
-                                /*
-                                for (var prop in geometry.properties) {
-                                    if (geometry.properties.hasOwnProperty(prop) && prop !== 'url') {
-                                        popupContent += '<div style=\"margin-bottom: 5px;\">' +
-                                            '<strong style=\"color: #555;\">' + prop + ':</strong> ' +
-                                            '<span style=\"color: #333;\">' + geometry.properties[prop] + '</span>' +
-                                            '</div>';
-                                    }
-                                }
-                                */
                                 popupContent += '</div>';
                                 
                                 /* Exibe o popup */
-                                /*popup.show(mapCoord, popupContent);*/
                                 
                             }, 500);
                         }
@@ -988,7 +892,6 @@ class OpenLayersMap extends TElement
                 console.error('Erro ao destacar geometria:', e);
             }
         ";
-        // TScript::create("$this->javascript");
         return $this;
     }
 
@@ -1039,7 +942,25 @@ class OpenLayersMap extends TElement
      */
     public function addLayerImmediate($layerName, array $config = [])
     {
-        $js = $this->createXYZLayerJS($layerName, $config);
+        $defaultConfig = [
+            'type'      => 'tile',
+            'visible'   => true,
+            'opacity'   => 1,
+            'zIndex'    => 0,
+            'source'    => 'osm',
+            'title'     => $layerName
+        ];
+
+        $config = array_merge($defaultConfig, $config);
+        $layerConfig = json_encode($config);
+        $safeName = addslashes($layerName);
+
+        $js = "
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addLayer) {
+                GeoMapApp.addLayer('{$safeName}', {$layerConfig});
+            }
+        ";
+
         TScript::create($js);
         return $this;
     }
@@ -1156,7 +1077,6 @@ class OpenLayersMap extends TElement
     {
         $this->width = is_numeric($width) ? "{$width}px" : $width;
         $this->height = is_numeric($height) ? "{$height}px" : $height;
-        // return $this;
 
         $style = new TElement('style');
         $style->add('#' . $this->id . '{ height:' . $this->height . ';  width: ' . $this->width . '; }');
@@ -1266,8 +1186,6 @@ class OpenLayersMap extends TElement
                     ol.proj.transform(evt.coordinate, 'EPSG:3857', 'EPSG:4326'), 2
                 );
 
-                /*console.log(evt.coordinate);*/
-
                 popup.show(evt.coordinate, 
                     '
                         <div>
@@ -1279,5 +1197,103 @@ class OpenLayersMap extends TElement
         ";
 
         TScript::create("$this->javascript");
+    }
+
+    /**
+     * Ativa o modo de edição de geometria
+     * @param string $geom GeoJSON da geometria a ser editada
+     * @return $this
+     */
+    public function enableGeometryEditing($geom = null)
+    {
+        $geomJson = $geom ? json_encode($geom) : 'null';
+
+        $this->javascript .= "
+            (function() {
+                if (typeof GeoMapApp === 'undefined' || !GeoMapApp.getMap()) {
+                    console.error('Mapa não disponível');
+                    return;
+                }
+                
+                var map = GeoMapApp.getMap();
+                
+                /* Remove camada de edição anterior se existir */
+                var oldLayer = map.getLayers().getArray().find(l => l.get('name') === 'edit_layer');
+                if (oldLayer) {
+                    map.removeLayer(oldLayer);
+                }
+                
+                /* Cria fonte e camada de edição */
+                var source = new ol.source.Vector();
+                
+                if ({$geomJson}) {
+                    var format = new ol.format.GeoJSON();
+                    var features = format.readFeatures({$geomJson}, {
+                        featureProjection: 'EPSG:3857'
+                    });
+                    source.addFeatures(features);
+                }
+                
+                var layer = new ol.layer.Vector({
+                    source: source,
+                    name: 'edit_layer',
+                    style: new ol.style.Style({
+                        stroke: new ol.style.Stroke({
+                            color: '#00ff00',
+                            width: 3
+                        }),
+                        fill: new ol.style.Fill({
+                            color: 'rgba(0, 255, 0, 0.1)'
+                        })
+                    })
+                });
+                
+                map.addLayer(layer);
+                
+                /* Armazena referências */
+                window._editLayer = layer;
+                window._editSource = source;
+                
+                console.log('Camada de edição criada');
+            })();
+        ";
+
+        TScript::create($this->javascript);
+        return $this;
+    }
+
+    /**
+     * Obtém a geometria editada como GeoJSON
+     * @return string GeoJSON
+     */
+    public function getEditedGeometry()
+    {
+        $this->javascript .= "
+            (function() {
+                if (window._editLayer) {
+                    var source = window._editLayer.getSource();
+                    var features = source.getFeatures();
+                    
+                    if (features.length > 0) {
+                        var format = new ol.format.GeoJSON();
+                        var geomJson = format.writeFeatures(features, {
+                            dataProjection: 'EPSG:4326',
+                            featureProjection: 'EPSG:3857'
+                        });
+                        
+                        /* Atualiza o campo hidden */
+                        var geomField = document.getElementById('geom');
+                        if (geomField) {
+                            geomField.value = geomJson;
+                        }
+                        
+                        return geomJson;
+                    }
+                }
+                return null;
+            })();
+        ";
+
+        return $this;
     }
 }
