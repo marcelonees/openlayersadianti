@@ -11,7 +11,7 @@ use stdClass;
 
 /**
  * OpenLayersMap Container
- * @version 1.3
+ * @version 1.4
  * @author Marcelo Barreto Nees
  * @copyright Copyright (c) 2025 Marcelo Barreto Nees <marcelo.linux@gmail.com>
  * @license MIT
@@ -38,6 +38,12 @@ class OpenLayersMap extends TElement
     protected $configFieldId = null;
     protected $showLayerControl = true;
     protected $restoreConfigData = null;
+
+    /* ======================================== */
+    /* CORES PARA DESTAQUE                     */
+    /* ======================================== */
+    protected $highlightStrokeColor = 'rgba(149,31,212,1)';
+    protected $highlightFillColor = 'rgba(149,31,212,0.20)';
 
     /**
      * Class Constructor
@@ -178,7 +184,9 @@ class OpenLayersMap extends TElement
                     zoom: {$this->z},
                     configField: '{$configFieldId}',
                     showLayerControl: {$showLayerControl},
-                    restoreConfig: {$restoreConfigData}
+                    restoreConfig: {$restoreConfigData},
+                    highlightStrokeColor: '{$this->highlightStrokeColor}',
+                    highlightFillColor: '{$this->highlightFillColor}'
                 };
                 
                 /* Inicializa o mapa */
@@ -427,6 +435,7 @@ class OpenLayersMap extends TElement
 
     /**
      * Add a marker to the map
+     * Remove o marcador anterior antes de adicionar o novo
      */
     public function addMarker($lat, $lng, $label = '')
     {
@@ -451,6 +460,19 @@ class OpenLayersMap extends TElement
                 
                 /* Verificar se as coordenadas são válidas */
                 if (!isNaN(marker.lat) && !isNaN(marker.lng)) {
+                    /* Remove o marcador anterior ANTES de adicionar o novo */
+                    var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : GeoMapApp.getMap();
+                    if (map) {
+                        var oldPinLayer = map.getLayers().getArray().find(function(l) { 
+                            return l.get('name') === 'pin'; 
+                        });
+                        if (oldPinLayer) {
+                            map.removeLayer(oldPinLayer);
+                            console.log('🗑️ Marcador anterior removido via addMarker');
+                        }
+                    }
+                    
+                    /* Adiciona o novo marcador */
                     GeoMapApp.addPin(marker);
                 } else {
                     console.error('Coordenadas inválidas:', marker);
@@ -460,6 +482,50 @@ class OpenLayersMap extends TElement
             }
         ";
 
+        return $this;
+    }
+
+    /**
+     * Add marker immediately (for static contexts)
+     * Remove o marcador anterior antes de adicionar o novo
+     */
+    public function addMarkerImmediate($lat, $lng, $label = '')
+    {
+        $lat = (float)$lat;
+        $lng = (float)$lng;
+        $safeLabel = addslashes($label);
+
+        $js = "
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
+                console.log('Adicionando marcador imediato:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}'});
+                
+                var marker = {
+                    lat: parseFloat({$lat}),
+                    lng: parseFloat({$lng}),
+                    label: '{$safeLabel}'
+                };
+                
+                if (!isNaN(marker.lat) && !isNaN(marker.lng)) {
+                    /* Remove o marcador anterior ANTES de adicionar o novo */
+                    var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : GeoMapApp.getMap();
+                    if (map) {
+                        var oldPinLayer = map.getLayers().getArray().find(function(l) { 
+                            return l.get('name') === 'pin'; 
+                        });
+                        if (oldPinLayer) {
+                            map.removeLayer(oldPinLayer);
+                            console.log('🗑️ Marcador anterior removido via addMarkerImmediate');
+                        }
+                    }
+                    
+                    GeoMapApp.addPin(marker);
+                } else {
+                    console.error('Coordenadas inválidas:', marker);
+                }
+            }
+        ";
+
+        TScript::create($js);
         return $this;
     }
 
@@ -515,6 +581,13 @@ class OpenLayersMap extends TElement
                     throw new Error('Bibliotecas necessárias não carregadas');
                 }
 
+                /* Obtém o último mapa criado */
+                var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : (GeoMapApp.getMap ? GeoMapApp.getMap() : null);
+                if (!map) {
+                    console.warn('⚠️ Nenhum mapa disponível para heatmap');
+                    return;
+                }
+
                 /* Cria uma fonte vetorial com os pontos */
                 var heatmapSource = new ol.source.Vector();
                 
@@ -549,19 +622,8 @@ class OpenLayersMap extends TElement
                 });
                 
                 /* Adiciona ao mapa */
-                if (GeoMapApp && GeoMapApp.getMap()) {
-                    GeoMapApp.addLayer('heatmap', {
-                        type: 'heatmap',
-                        blur: {$config['blur']},
-                        radius: {$config['radius']},
-                        gradient: {$gradientJS},
-                        minOpacity: {$config['minOpacity']},
-                        zIndex: {$config['zIndex']}
-                    });
-                    console.log('Camada de heatmap adicionada com sucesso');
-                } else {
-                    console.error('Não foi possível acessar o mapa principal');
-                }
+                map.addLayer(heatmapLayer);
+                console.log('Camada de heatmap adicionada com sucesso');
                 
                 /* Armazena a referência para possível remoção posterior */
                 if (typeof GeoMapApp.heatmapLayers === 'undefined') {
@@ -585,11 +647,10 @@ class OpenLayersMap extends TElement
     {
         $this->javascript .= "
             try {
-                if (GeoMapApp && GeoMapApp.heatmapLayers) {
+                var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : (GeoMapApp.getMap ? GeoMapApp.getMap() : null);
+                if (map && GeoMapApp.heatmapLayers) {
                     GeoMapApp.heatmapLayers.forEach(function(layer) {
-                        if (GeoMapApp.getMap()) {
-                            GeoMapApp.getMap().removeLayer(layer);
-                        }
+                        map.removeLayer(layer);
                     });
                     GeoMapApp.heatmapLayers = [];
                 }
@@ -603,11 +664,37 @@ class OpenLayersMap extends TElement
 
     /**
      * Draw a circle on the map
+     * OPERA NO ÚLTIMO MAPA CRIADO
      */
     public function DrawCircleOnLonLat($lon, $lat, $radius = 300, $strokeColor = 'rgba(255,15,15)', $fillColor = 'rgba(255,15,15, 0.1)')
     {
         $this->javascript .= "
-            DrawCircleOnLonLat({$lon}, {$lat}, {$radius}, '{$strokeColor}', '{$fillColor}');
+            var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : (GeoMapApp.getMap ? GeoMapApp.getMap() : null);
+            if (map) {
+                var circle = new ol.geom.Circle(
+                    ol.proj.transform([{$lon}, {$lat}], 'EPSG:4326', 'EPSG:3857'),
+                    {$radius}
+                );
+                
+                var circleFeature = new ol.Feature(circle);
+                var vectorSource = new ol.source.Vector();
+                vectorSource.addFeatures([circleFeature]);
+                
+                var circleLayer = new ol.layer.Vector({
+                    source: vectorSource,
+                    style: new ol.style.Style({
+                        stroke: new ol.style.Stroke({
+                            color: '{$strokeColor}',
+                            width: 3,
+                        }),
+                        fill: new ol.style.Fill({
+                            color: '{$fillColor}',
+                        }),
+                    }),
+                });
+                
+                map.addLayer(circleLayer);
+            }
         ";
         return $this;
     }
@@ -668,6 +755,11 @@ class OpenLayersMap extends TElement
         }
     }
 
+    /**
+     * Highlight and fly to a geometry
+     * OPERA NO ÚLTIMO MAPA CRIADO COM RETRY AUTOMÁTICO
+     * CORRIGIDO: Cria a camada de highlight se não existir com estilo personalizado
+     */
     public function HighlightAndFlyToGeom($geom, $z = 10)
     {
         try {
@@ -726,148 +818,181 @@ class OpenLayersMap extends TElement
                 throw new Exception('Geometria inválida. Deve ser um objeto GeoJSON válido.');
             }
 
-            $this->javascript .= "
-                try {
-                    if (typeof GeoMapApp === 'undefined') {
-                        throw new Error('GeoMapApp não está disponível');
-                    }
-                    
-                    /* Cria o objeto de geometria completo */
-                    var geometry = {
-                        type: 'Feature',
-                        geometry: " . json_encode($geoJson->geometry) . ",
-                        properties: " . json_encode($geoJson->properties ?? new stdClass()) . "
-                    };
-                    
-                    /* Destaca a geometria no mapa */
-                    console.log('Destacando geometria:', geometry);
-                    GeoMapApp.highlightGeometry(geometry);
-                    
-                    /* Calcula o ponto ideal para o popup baseado no tipo de geometria */
-                    var popupAnchorPoint;
-                    
-                    if (typeof turf !== 'undefined') {
-                        console.log('Calculando ponto ideal com turf');
-    
-                        try {
-                            if (geometry.geometry.type === 'LineString' || geometry.geometry.type === 'MultiLineString') {
-                                /* Para linhas, calcula um ponto ao longo da linha */
-                                var line = geometry.geometry;
-                                
-                                if (geometry.geometry.type === 'MultiLineString') {
-                                    /* Pega a linha mais longa do MultiLineString */
-                                    var longestLine = geometry.geometry.coordinates.reduce((a, b) => 
-                                        a.length > b.length ? a : b
-                                    );
-                                    line = { type: 'LineString', coordinates: longestLine };
-                                }
-                                
-                                /* Calcula o ponto no meio da linha (50% do comprimento) */
-                                var lineLength = turf.length(line);
-                                var midpoint = turf.along(line, lineLength / 2);
-                                popupAnchorPoint = midpoint.geometry.coordinates;
-                                
-                            } else if (geometry.geometry.type === 'Polygon' || geometry.geometry.type === 'MultiPolygon') {
-                                /* Para polígonos, usa o centroide */
-                                popupAnchorPoint = turf.centroid(geometry.geometry).geometry.coordinates;
-                            }
+            $geomString = json_encode($geoJson);
+            $strokeColor = $this->highlightStrokeColor;
+            $fillColor = $this->highlightFillColor;
 
-                        } catch (turfError) {
-                            console.warn('Erro ao calcular ponto com turf:', turfError);
+            /* Gera o JavaScript com retry automático e CRIA a camada de highlight se não existir */
+            $this->javascript .= "
+                /* Função interna com retry para HighlightAndFlyToGeom */
+                (function() {
+                    var geomData = {$geomString};
+                    var zoomLevel = {$z};
+                    var maxRetries = 15;
+                    var retryCount = 0;
+                    var executed = false;
+                    var highlightStrokeColor = '{$strokeColor}';
+                    var highlightFillColor = '{$fillColor}';
+                    
+                    function ensureHighlightLayer(map) {
+                        var highlightLayer = map.getLayers().getArray().find(function(l) { 
+                            return l.get('name') === 'highlight'; 
+                        });
+                        
+                        if (!highlightLayer) {
+                            console.log('🔄 Criando camada de highlight...');
+                            
+                            var source = new ol.source.Vector({
+                                format: new ol.format.GeoJSON()
+                            });
+                            
+                            /* Estilo personalizado com as cores definidas */
+                            var style = new ol.style.Style({
+                                stroke: new ol.style.Stroke({
+                                    color: highlightStrokeColor,
+                                    width: 3,
+                                }),
+                                fill: new ol.style.Fill({
+                                    color: highlightFillColor,
+                                }),
+                                image: new ol.style.Circle({
+                                    radius: 8,
+                                    fill: new ol.style.Fill({
+                                        color: highlightStrokeColor,
+                                    }),
+                                    stroke: new ol.style.Stroke({
+                                        color: '#ffffff',
+                                        width: 2,
+                                    }),
+                                }),
+                            });
+                            
+                            highlightLayer = new ol.layer.Vector({
+                                source: source,
+                                name: 'highlight',
+                                style: style,
+                                zIndex: 7
+                            });
+                            
+                            map.addLayer(highlightLayer);
+                            console.log('✅ Camada de highlight criada com estilo personalizado');
+                        }
+                        
+                        return highlightLayer;
+                    }
+                    
+                    function executeHighlightAndFly() {
+                        if (executed) return;
+                        
+                        var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : null;
+                        
+                        if (!map) {
+                            retryCount++;
+                            if (retryCount < maxRetries) {
+                                console.log('⏳ Aguardando mapa... tentativa ' + retryCount + '/' + maxRetries);
+                                setTimeout(executeHighlightAndFly, 400);
+                            } else {
+                                console.warn('⚠️ Mapa não disponível após ' + maxRetries + ' tentativas');
+                            }
+                            return;
+                        }
+                        
+                        /* Garante que a camada de highlight existe */
+                        var highlightLayer = ensureHighlightLayer(map);
+                        
+                        if (!highlightLayer) {
+                            retryCount++;
+                            if (retryCount < maxRetries) {
+                                console.log('⏳ Aguardando camada de highlight... tentativa ' + retryCount + '/' + maxRetries);
+                                setTimeout(executeHighlightAndFly, 400);
+                            } else {
+                                console.warn('⚠️ Camada de highlight não disponível após ' + maxRetries + ' tentativas');
+                            }
+                            return;
+                        }
+                        
+                        /* Marca como executado para evitar duplicidade */
+                        executed = true;
+                        
+                        console.log('🔄 HighlightAndFlyToGeom - Executando no mapa:', map.getTarget());
+                        
+                        try {
+                            /* Processa a geometria para garantir o formato correto */
+                            var features = null;
+                            
+                            /* Se for um objeto Feature */
+                            if (geomData && geomData.type === 'Feature') {
+                                features = new ol.format.GeoJSON().readFeatures(geomData, {
+                                    featureProjection: 'EPSG:3857'
+                                });
+                            } 
+                            /* Se for um objeto geometry puro */
+                            else if (geomData && geomData.type && geomData.coordinates) {
+                                var featureObj = {
+                                    type: 'Feature',
+                                    geometry: geomData,
+                                    properties: {}
+                                };
+                                features = new ol.format.GeoJSON().readFeatures(featureObj, {
+                                    featureProjection: 'EPSG:3857'
+                                });
+                            } else {
+                                /* Tenta ler diretamente */
+                                features = new ol.format.GeoJSON().readFeatures(geomData, {
+                                    featureProjection: 'EPSG:3857'
+                                });
+                            }
+                            
+                            if (!features || features.length === 0) {
+                                console.warn('⚠️ Nenhuma feature encontrada');
+                                return;
+                            }
+                            
+                            console.log('📐 Features encontradas:', features.length);
+                            
+                            /* Marca as features como customizadas */
+                            features.forEach(function(f) { 
+                                f.set('custom', true); 
+                            });
+                            
+                            /* Adiciona à camada de highlight */
+                            highlightLayer.getSource().clear();
+                            highlightLayer.getSource().addFeatures(features);
+                            console.log('✅ Geometria destacada (' + features.length + ' features)');
+                            
+                            /* Calcula o extent para voar */
+                            var extent = ol.extent.createEmpty();
+                            features.forEach(function(feature) {
+                                var geomExtent = feature.getGeometry().getExtent();
+                                ol.extent.extend(extent, geomExtent);
+                            });
+                            
+                            if (!ol.extent.isEmpty(extent)) {
+                                console.log('📐 Extent calculado:', extent);
+                                map.getView().fit(extent, {
+                                    padding: [50, 50, 50, 50],
+                                    maxZoom: zoomLevel,
+                                    duration: 1000
+                                });
+                                console.log('✅ Voo para geometria (zoom: ' + zoomLevel + ')');
+                            } else {
+                                console.warn('⚠️ Extent vazio, não foi possível voar');
+                            }
+                        } catch(e) {
+                            console.error('❌ Erro em HighlightAndFlyToGeom:', e);
+                            /* Se falhar, tenta novamente com retry */
+                            executed = false;
+                            retryCount++;
+                            if (retryCount < maxRetries) {
+                                console.log('⏳ Tentando novamente... ' + retryCount + '/' + maxRetries);
+                                setTimeout(executeHighlightAndFly, 500);
+                            }
                         }
                     }
                     
-                    /* Fallback para quando turf não estiver disponível */
-                    if (!popupAnchorPoint) {
-                        console.log('Calculando ponto ideal sem turf');
-    
-                        var coords = geometry.geometry.coordinates;
-                        
-                        if (geometry.geometry.type === 'MultiLineString' && coords.length > 0) {
-                            var firstLine = coords[0];
-                            if (firstLine.length > 0) {
-                                popupAnchorPoint = firstLine[0];
-                            }
-                        } 
-                        else if (geometry.geometry.type === 'MultiPolygon' && coords.length > 0) {
-                            var firstPolygon = coords[0];
-                            if (firstPolygon.length > 0 && firstPolygon[0].length > 0) {
-                                popupAnchorPoint = firstPolygon[0][0];
-                            }
-                        }
-                        else if (geometry.geometry.type === 'LineString' && coords.length > 0) {
-                            popupAnchorPoint = coords[0];
-                        }
-                        else if (geometry.geometry.type === 'Polygon' && coords.length > 0) {
-                            /* Um Polygon tem pelo menos um anel (o exterior) */
-                            var exteriorRing = coords[0];
-                            if (exteriorRing.length > 0) {
-                                /* Pega o primeiro ponto do anel exterior */
-                                popupAnchorPoint = exteriorRing[0];
-                            }
-                        }
-                    }
-                    
-                    if (popupAnchorPoint && popupAnchorPoint.length === 2) {
-                        var mapCoord = ol.proj.fromLonLat(popupAnchorPoint);
-                        
-                        /* Executa o flyTo */
-                        console.log('GeoMapApp.flyTo(popupAnchorPoint, {$z});');
-                        GeoMapApp.flyTo(popupAnchorPoint, $z);
-                        
-                        /* Exibe propriedades no popup se existirem */
-                        if (geometry.properties && Object.keys(geometry.properties).length > 0) {
-                            setTimeout(function() {
-                                var popup = GeoMapApp.getPopup();
-                                if (!popup) {
-                                    popup = new ol.Overlay.Popup({
-                                        element: document.getElementById('popup'),
-                                        positioning: 'bottom-left',
-                                        stopEvent: false,
-                                        autoPan: true,
-                                        autoPanAnimation: {
-                                            duration: 250
-                                        },
-                                        offset: [0, 0] /* Ajuste fino do posicionamento */
-                                    });
-                                    GeoMapApp.getMap().addOverlay(popup);
-                                }
-                                
-                                /* Cria o conteúdo do popup com estilos melhorados */
-                                var popupContent = '<div class=\"ol-popup-content\" style=\"' +
-                                    'background-color: white; ' +
-                                    'padding: 15px; ' +
-                                    'min-width: 270px; ' +
-                                    'max-height: 300px; ' +
-                                    'overflow-x: auto; ' +
-                                    'border-radius: 5px; ' +
-                                    'box-shadow: 0 3px 10px rgba(0,0,0,0.3);' +
-                                    '\">';
-                                
-                                /* Adiciona link se existir URL */
-                                if (geometry.properties.url) {
-                                    let url = geometry.properties.url;
-                                    console.log('URL original:', url);
-                                    if (!url.startsWith('http') && !url.startsWith('index.php') && !url.startsWith('/')) {
-                                        url = 'index.php?' + url;
-                                    }
-                                    popupContent += '<a href=\"#\" onclick=\"__adianti_load_page(\'' + url + '\'); return false;\" ' +
-                                        'style=\"display: inline-block; margin-bottom: 10px; color: #0066cc;\">';
-                                    popupContent += '<i class=\"fas fa-edit\"></i> Editar';
-                                    popupContent += '</a><br>';
-                                }
-                                popupContent += '</div>';
-                                
-                                /* Exibe o popup */
-                                
-                            }, 500);
-                        }
-                    } else {
-                        console.warn('Não foi possível determinar o ponto de ancoragem para o popup', geometry);
-                    }
-                } catch(e) {
-                    console.error('Erro em HighlightAndFlyToGeom:', e);
-                }
+                    /* Executa com um pequeno delay inicial */
+                    setTimeout(executeHighlightAndFly, 300);
+                })();
             ";
 
             return $this;
@@ -877,15 +1002,30 @@ class OpenLayersMap extends TElement
         }
     }
 
-
+    /**
+     * Highlight a geometry
+     * OPERA NO ÚLTIMO MAPA CRIADO
+     */
     public function HighlightGeom($geom, $z = 10)
     {
         $this->javascript .= "
             try {
-                var geomObj = typeof {$geom} === 'string' ? JSON.parse({$geom}) : {$geom};
-                if (geomObj && geomObj.geometry && geomObj.geometry.coordinates) {
-                    if (typeof GeoMapApp !== 'undefined') {
-                        GeoMapApp.highlightGeometry(geomObj);
+                if (typeof HighlightGeom === 'function') {
+                    HighlightGeom(" . json_encode($geom) . ");
+                } else {
+                    var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : (GeoMapApp.getMap ? GeoMapApp.getMap() : null);
+                    if (map) {
+                        var highlightLayer = map.getLayers().getArray().find(function(l) { 
+                            return l.get('name') === 'highlight'; 
+                        });
+                        if (highlightLayer) {
+                            var features = new ol.format.GeoJSON().readFeatures(" . json_encode($geom) . ", {
+                                featureProjection: 'EPSG:3857'
+                            });
+                            features.forEach(function(f) { f.set('custom', true); });
+                            highlightLayer.getSource().clear();
+                            highlightLayer.getSource().addFeatures(features);
+                        }
                     }
                 }
             } catch(e) {
@@ -897,6 +1037,7 @@ class OpenLayersMap extends TElement
 
     /**
      * Clear all Geom on the Map
+     * OPERA NO ÚLTIMO MAPA CRIADO
      */
     public function clearGeomSource()
     {
@@ -904,8 +1045,17 @@ class OpenLayersMap extends TElement
             $this->javascript .= "
                 if (typeof clearGeomSource === 'function') {
                     clearGeomSource();
-                } else if (GeoMapApp && GeoMapApp.highlightGeometry) {
-                    GeoMapApp.highlightGeometry(null);
+                } else {
+                    var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : (GeoMapApp.getMap ? GeoMapApp.getMap() : null);
+                    if (map) {
+                        var highlightLayer = map.getLayers().getArray().find(function(l) { 
+                            return l.get('name') === 'highlight'; 
+                        });
+                        if (highlightLayer) {
+                            highlightLayer.getSource().clear();
+                            console.log('✅ Geometria limpa do último mapa');
+                        }
+                    }
                 }
             ";
             TScript::create($this->javascript);
@@ -915,30 +1065,8 @@ class OpenLayersMap extends TElement
     }
 
     /**
-     * Add marker immediately (for static contexts)
-     */
-    public function addMarkerImmediate($lat, $lng, $label = '')
-    {
-        $lat = (float)$lat;
-        $lng = (float)$lng;
-        $safeLabel = addslashes($label);
-
-        $js = "
-            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
-                GeoMapApp.addPin({
-                    lat: {$lat},
-                    lng: {$lng},
-                    label: '{$safeLabel}'
-                });
-            }
-        ";
-
-        TScript::create($js);
-        return $this;
-    }
-
-    /**
      * Add layer immediately (for static contexts)
+     * OPERA NO ÚLTIMO MAPA CRIADO
      */
     public function addLayerImmediate($layerName, array $config = [])
     {
@@ -973,6 +1101,10 @@ class OpenLayersMap extends TElement
     public function configStroke($strokeColor = 'rgba(149,31,212,1)', $fillColor = 'rgba(149,31,212,0.20)')
     {
         try {
+            /* Armazena as cores para uso futuro */
+            $this->highlightStrokeColor = $strokeColor;
+            $this->highlightFillColor = $fillColor;
+
             $this->javascript .= "
                 if (typeof configStroke === 'function') {
                     configStroke('$strokeColor', '$fillColor');
@@ -1215,7 +1347,11 @@ class OpenLayersMap extends TElement
                     return;
                 }
                 
-                var map = GeoMapApp.getMap();
+                var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : GeoMapApp.getMap();
+                if (!map) {
+                    console.error('Nenhum mapa disponível');
+                    return;
+                }
                 
                 /* Remove camada de edição anterior se existir */
                 var oldLayer = map.getLayers().getArray().find(l => l.get('name') === 'edit_layer');
@@ -1254,7 +1390,7 @@ class OpenLayersMap extends TElement
                 window._editLayer = layer;
                 window._editSource = source;
                 
-                console.log('Camada de edição criada');
+                console.log('Camada de edição criada no último mapa');
             })();
         ";
 
