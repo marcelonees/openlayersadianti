@@ -233,9 +233,7 @@
 
         /* Restaura configurações se fornecidas */
         if (config.restoreConfig) {
-          setTimeout(function () {
-            _restoreMapConfig(config.restoreConfig);
-          }, 500);
+          _restoreMapConfig(config.restoreConfig);
         }
 
         console.log("Map initialized successfully");
