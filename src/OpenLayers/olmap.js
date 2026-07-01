@@ -1068,7 +1068,12 @@
               }
             });
 
-          _addPin({ lat: coordinate.lng, lng: coordinate.lat }, false);
+          /* removePrevious = true para remover o marcador anterior ao adicionar via clique */
+          _addPin(
+            { lat: coordinate.lng, lng: coordinate.lat },
+            false,
+            true /* <-- removePrevious = true */,
+          );
         }
 
         /**
@@ -1211,13 +1216,15 @@
     function _handleEmptyClick(coordinate) {
       console.log("_handleEmptyClick");
       _updateCoordinateFields(coordinate);
-      _addPin({ lat: coordinate.lat, lng: coordinate.lng });
+      /* removePrevious = false para não remover marcadores existentes */
+      _addPin({ lat: coordinate.lat, lng: coordinate.lng }, true, false);
     }
 
     function _handleSimpleMarkerFeature(coordinate) {
       console.log("_handleSimpleMarkerFeature");
       _updateCoordinateFields(coordinate);
-      _addPin({ lat: coordinate.lat, lng: coordinate.lng });
+      /* removePrevious = false para não remover marcadores existentes */
+      _addPin({ lat: coordinate.lat, lng: coordinate.lng }, true, false);
     }
 
     function _handleActivityFeatureClick(featureData, coordinate) {
@@ -1350,7 +1357,7 @@
     /* ======================================== */
     /* _addPin - SEMPRE OPERA NO ÚLTIMO MAPA   */
     /* ======================================== */
-    function _addPin(marker, flyTo = true) {
+    function _addPin(marker, flyTo = true, removePrevious = false) {
       /* Obtém o último mapa criado */
       const map = _getLastMap();
       if (!map) {
@@ -1369,16 +1376,18 @@
 
       console.log("Coordenadas lng, lat:", lng, lat);
 
-      /* Remove existing marker layer - SEMPRE remove antes de adicionar */
-      const oldPinLayer = map
-        .getLayers()
-        .getArray()
-        .find(function (l) {
-          return l.get("name") === "pin";
-        });
-      if (oldPinLayer) {
-        map.removeLayer(oldPinLayer);
-        console.log("🗑️ Marcador anterior removido");
+      /* Remove existing marker layer SOMENTE se removePrevious for true */
+      if (removePrevious) {
+        const oldPinLayer = map
+          .getLayers()
+          .getArray()
+          .find(function (l) {
+            return l.get("name") === "pin";
+          });
+        if (oldPinLayer) {
+          map.removeLayer(oldPinLayer);
+          console.log("🗑️ Marcador anterior removido (via clique)");
+        }
       }
 
       const iconFeature = new ol.Feature({
@@ -1802,7 +1811,8 @@
       },
 
       addPin: function (marker) {
-        _addPin(marker);
+        /* Por padrão, via API não remove o anterior */
+        _addPin(marker, true, false);
         return this;
       },
 

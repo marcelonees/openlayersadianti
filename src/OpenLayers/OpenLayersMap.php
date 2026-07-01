@@ -435,7 +435,7 @@ class OpenLayersMap extends TElement
 
     /**
      * Add a marker to the map
-     * Remove o marcador anterior antes de adicionar o novo
+     * NÃO remove o marcador anterior - permite múltiplos marcadores
      */
     public function addMarker($lat, $lng, $label = '')
     {
@@ -449,7 +449,7 @@ class OpenLayersMap extends TElement
         $this->javascript .= "
             /* Verifica se GeoMapApp está disponível */
             if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
-                console.log('Adicionando marcador:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}'});
+                console.log('Adicionando marcador via PHP:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}'});
                 
                 /* Criar objeto marker com valores numéricos */
                 var marker = {
@@ -460,19 +460,7 @@ class OpenLayersMap extends TElement
                 
                 /* Verificar se as coordenadas são válidas */
                 if (!isNaN(marker.lat) && !isNaN(marker.lng)) {
-                    /* Remove o marcador anterior ANTES de adicionar o novo */
-                    var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : GeoMapApp.getMap();
-                    if (map) {
-                        var oldPinLayer = map.getLayers().getArray().find(function(l) { 
-                            return l.get('name') === 'pin'; 
-                        });
-                        if (oldPinLayer) {
-                            map.removeLayer(oldPinLayer);
-                            console.log('🗑️ Marcador anterior removido via addMarker');
-                        }
-                    }
-                    
-                    /* Adiciona o novo marcador */
+                    /* Adiciona o marcador SEM remover os anteriores */
                     GeoMapApp.addPin(marker);
                 } else {
                     console.error('Coordenadas inválidas:', marker);
@@ -487,7 +475,7 @@ class OpenLayersMap extends TElement
 
     /**
      * Add marker immediately (for static contexts)
-     * Remove o marcador anterior antes de adicionar o novo
+     * NÃO remove o marcador anterior - permite múltiplos marcadores
      */
     public function addMarkerImmediate($lat, $lng, $label = '')
     {
@@ -497,7 +485,7 @@ class OpenLayersMap extends TElement
 
         $js = "
             if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
-                console.log('Adicionando marcador imediato:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}'});
+                console.log('Adicionando marcador imediato via PHP:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}'});
                 
                 var marker = {
                     lat: parseFloat({$lat}),
@@ -506,18 +494,7 @@ class OpenLayersMap extends TElement
                 };
                 
                 if (!isNaN(marker.lat) && !isNaN(marker.lng)) {
-                    /* Remove o marcador anterior ANTES de adicionar o novo */
-                    var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : GeoMapApp.getMap();
-                    if (map) {
-                        var oldPinLayer = map.getLayers().getArray().find(function(l) { 
-                            return l.get('name') === 'pin'; 
-                        });
-                        if (oldPinLayer) {
-                            map.removeLayer(oldPinLayer);
-                            console.log('🗑️ Marcador anterior removido via addMarkerImmediate');
-                        }
-                    }
-                    
+                    /* Adiciona o marcador SEM remover os anteriores */
                     GeoMapApp.addPin(marker);
                 } else {
                     console.error('Coordenadas inválidas:', marker);
