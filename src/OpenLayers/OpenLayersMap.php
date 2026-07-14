@@ -737,7 +737,7 @@ class OpenLayersMap extends TElement
      * OPERA NO ÚLTIMO MAPA CRIADO COM RETRY AUTOMÁTICO
      * CORRIGIDO: Cria a camada de highlight se não existir com estilo personalizado
      */
-    public function HighlightAndFlyToGeom($geom, $z = 10)
+    public function HighlightAndFlyToGeom($geom, $z = 15)
     {
         try {
             /* Decodifica o JSON da geometria */
@@ -944,13 +944,17 @@ class OpenLayersMap extends TElement
                                 ol.extent.extend(extent, geomExtent);
                             });
                             
+                            const view = map.getView();
+                            const center = ol.extent.getCenter(extent);
+
                             if (!ol.extent.isEmpty(extent)) {
                                 console.log('📐 Extent calculado:', extent);
-                                map.getView().fit(extent, {
-                                    padding: [50, 50, 50, 50],
-                                    maxZoom: zoomLevel,
-                                    duration: 1000
+                                view.animate({
+                                    center: center,
+                                    zoom: zoomLevel,
+                                    duration: 2000
                                 });
+
                                 console.log('✅ Voo para geometria (zoom: ' + zoomLevel + ')');
                             } else {
                                 console.warn('⚠️ Extent vazio, não foi possível voar');
