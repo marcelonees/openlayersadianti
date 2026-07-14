@@ -524,6 +524,7 @@
         }
 
         /* Restaura posição do mapa */
+        /*
         if (config.map) {
           if (config.map.center) {
             _map.getView().setCenter(config.map.center);
@@ -532,6 +533,7 @@
             _map.getView().setZoom(config.map.zoom);
           }
         }
+        */
 
         console.log("✅ Configurações restauradas com sucesso");
       } catch (e) {
@@ -1046,27 +1048,28 @@
         if (shouldAddPin) {
           console.log("Adicionando marcador no mapa");
 
-          /* Remove o marcador anterior da camada highlight */
-          _map
+          /* Obtém a camada highlight com segurança */
+          const highlightLayer = _map
             .getLayers()
             .getArray()
             .find(function (l) {
               return l.get("name") === "highlight";
-            })
-            .getSource()
-            .getFeatures()
-            .forEach(function (f) {
+            });
+
+          /* Verifica se a camada existe e tem source antes de tentar usar */
+          if (highlightLayer && highlightLayer.getSource()) {
+            const source = highlightLayer.getSource();
+            const features = source.getFeatures();
+
+            /* Remove apenas features custom que são pontos */
+            features.forEach(function (f) {
               if (f.get("custom") && f.getGeometry().getType() === "Point") {
-                _map
-                  .getLayers()
-                  .getArray()
-                  .find(function (l) {
-                    return l.get("name") === "highlight";
-                  })
-                  .getSource()
-                  .removeFeature(f);
+                source.removeFeature(f);
               }
             });
+          } else {
+            console.warn("⚠️ Camada highlight não encontrada ou sem source");
+          }
 
           /* removePrevious = true para remover o marcador anterior ao adicionar via clique */
           _addPin(
@@ -1193,7 +1196,9 @@
       if (latField) {
         latField.value = coordinate.lat;
         $(latField).trigger("change");
+        /*  
         latField.dispatchEvent(new Event("change", { bubbles: true }));
+        */
         console.log("Campo lat atualizado:", coordinate.lat);
         latField.classList.add("coordinate-updated");
         setTimeout(() => latField.classList.remove("coordinate-updated"), 500);
@@ -1204,7 +1209,9 @@
       if (lonField) {
         lonField.value = coordinate.lng;
         $(lonField).trigger("change");
+        /*
         lonField.dispatchEvent(new Event("change", { bubbles: true }));
+        */
         console.log("Campo lon atualizado:", coordinate.lng);
         lonField.classList.add("coordinate-updated");
         setTimeout(() => lonField.classList.remove("coordinate-updated"), 500);
@@ -1759,14 +1766,14 @@
         if (!this.enabled) return;
 
         const geoserver_url =
-          "https://geo.jaraguadosul.sc.gov.br/gs/geoserver-hive/PMJS/wms";
-        if (_map.getView().getZoom() > 16) {
+          "https://geo.jaraguadosul.sc.gov.br/gs/geoserver-main/PMJS/wms";
+        if (_map.getView().getZoom() > 15) {
           $.post(
             geoserver_url,
             {
               service: "WFS",
               request: "GetFeature",
-              typeNames: "view_territorio",
+              typeNames: "view_territorio_censo",
               version: "2.0.0",
               srsName: "EPSG:4326",
               outputFormat: "application/json",
