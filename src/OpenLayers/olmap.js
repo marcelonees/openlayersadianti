@@ -1063,12 +1063,17 @@
 
             /* Remove apenas features custom que são pontos */
             features.forEach(function (f) {
-              if (f.get("custom") && f.getGeometry().getType() === "Point") {
+              if (
+                f.get("custom") &&
+                f.getGeometry().getType() === "Point"
+              ) {
                 source.removeFeature(f);
               }
             });
           } else {
-            console.warn("⚠️ Camada highlight não encontrada ou sem source");
+              console.warn(
+                "⚠️ Camada highlight não encontrada ou sem source",
+              );
           }
 
           /* removePrevious = true para remover o marcador anterior ao adicionar via clique */
@@ -1095,11 +1100,17 @@
 
           /* Se houver URL, carrega o conteúdo via AJAX */
           if (featureData.url) {
-            console.log("Mostrando popup com URL da feature:", featureData.url);
+            console.log(
+              "Mostrando popup com URL da feature:",
+              featureData.url,
+            );
             _showPopupWithLoader(coordinate, featureData.url);
           } else {
             if (featureData.control) {
-              console.log("Mostrando popup com controle:", featureData.control);
+              console.log(
+                "Mostrando popup com controle:",
+                featureData.control,
+              );
 
               _showPopupWithLoader(
                 coordinate,
@@ -1136,7 +1147,7 @@
         console.error("Error handling map click:", error);
       }
     }
-
+      
     function _handlePointerMove(e) {
       /* console.log("_handlePointerMove"); */
       if (!e || !e.pixel) return;
