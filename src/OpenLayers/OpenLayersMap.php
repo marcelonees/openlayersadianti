@@ -735,7 +735,7 @@ class OpenLayersMap extends TElement
     /**
      * Highlight and fly to a geometry
      * OPERA NO ÚLTIMO MAPA CRIADO COM RETRY AUTOMÁTICO
-     * CORRIGIDO: Cria a camada de highlight se não existir com estilo personalizado
+     * CORRIGIDO: Suporte a GeometryCollection
      */
     public function HighlightAndFlyToGeom($geom, $z = 15)
     {
@@ -751,6 +751,26 @@ class OpenLayersMap extends TElement
             /* VERIFICAÇÃO CRÍTICA - Garante que $geoJson não seja null */
             if ($geoJson === null) {
                 throw new Exception('Falha ao decodificar JSON da geometria. String inválida: ' . substr($geom, 0, 100));
+            }
+
+            /* ======================================== */
+            /* NOVA VALIDAÇÃO PARA GEOMETRYCOLLECTION   */
+            /* ======================================== */
+            if ($geoJson && isset($geoJson->type) && $geoJson->type === 'GeometryCollection') {
+                /* Extrai a primeira geometria do GeometryCollection */
+                if (isset($geoJson->geometries) && is_array($geoJson->geometries) && count($geoJson->geometries) > 0) {
+                    /* Pega a primeira geometria da coleção */
+                    $firstGeometry = $geoJson->geometries[0];
+
+                    /* Converte para Feature para compatibilidade */
+                    $geoJson = (object)[
+                        'type' => 'Feature',
+                        'geometry' => $firstGeometry,
+                        'properties' => new stdClass()
+                    ];
+                } else {
+                    throw new Exception('GeometryCollection vazia ou inválida');
+                }
             }
 
             /* Verifica se é uma FeatureCollection */
@@ -774,7 +794,8 @@ class OpenLayersMap extends TElement
                 ];
             }
 
-            if ($geoJson->type === 'Polygon') {
+            /* Verifica se é um Polygon puro e converte para Feature */
+            if ($geoJson && isset($geoJson->type) && $geoJson->type === 'Polygon') {
                 if (!isset($geoJson->coordinates) || !is_array($geoJson->coordinates)) {
                     throw new Exception('Estrutura de Polygon inválida');
                 }
@@ -791,8 +812,33 @@ class OpenLayersMap extends TElement
                 ];
             }
 
+            /* Verifica se é um MultiPolygon puro e converte para Feature */
+            if ($geoJson && isset($geoJson->type) && $geoJson->type === 'MultiPolygon') {
+                if (!isset($geoJson->coordinates) || !is_array($geoJson->coordinates)) {
+                    throw new Exception('Estrutura de MultiPolygon inválida');
+                }
+
+                $properties = new stdClass();
+                $geoJson = (object)[
+                    'type' => 'Feature',
+                    'geometry' => $geoJson,
+                    'properties' => $properties
+                ];
+            }
+
+            /* VALIDAÇÃO FINAL - Garante que temos geometry e coordinates */
             if (!$geoJson || !isset($geoJson->geometry) || !isset($geoJson->geometry->coordinates)) {
-                throw new Exception('Geometria inválida. Deve ser um objeto GeoJSON válido.');
+                /* Se não tiver geometry, tenta usar o próprio objeto como geometry */
+                if (isset($geoJson->coordinates) && isset($geoJson->type)) {
+                    $tempGeo = $geoJson;
+                    $geoJson = (object)[
+                        'type' => 'Feature',
+                        'geometry' => $tempGeo,
+                        'properties' => new stdClass()
+                    ];
+                } else {
+                    throw new Exception('Geometria inválida. Deve ser um objeto GeoJSON válido.');
+                }
             }
 
             $geomString = json_encode($geoJson);
@@ -801,180 +847,180 @@ class OpenLayersMap extends TElement
 
             /* Gera o JavaScript com retry automático e CRIA a camada de highlight se não existir */
             $this->javascript .= "
-                /* Função interna com retry para HighlightAndFlyToGeom */
-                (function() {
-                    var geomData = {$geomString};
-                    var zoomLevel = {$z};
-                    var maxRetries = 15;
-                    var retryCount = 0;
-                    var executed = false;
-                    var highlightStrokeColor = '{$strokeColor}';
-                    var highlightFillColor = '{$fillColor}';
+            /* Função interna com retry para HighlightAndFlyToGeom */
+            (function() {
+                var geomData = {$geomString};
+                var zoomLevel = {$z};
+                var maxRetries = 15;
+                var retryCount = 0;
+                var executed = false;
+                var highlightStrokeColor = '{$strokeColor}';
+                var highlightFillColor = '{$fillColor}';
+                
+                function ensureHighlightLayer(map) {
+                    var highlightLayer = map.getLayers().getArray().find(function(l) { 
+                        return l.get('name') === 'highlight'; 
+                    });
                     
-                    function ensureHighlightLayer(map) {
-                        var highlightLayer = map.getLayers().getArray().find(function(l) { 
-                            return l.get('name') === 'highlight'; 
+                    if (!highlightLayer) {
+                        console.log('🔄 Criando camada de highlight...');
+                        
+                        var source = new ol.source.Vector({
+                            format: new ol.format.GeoJSON()
                         });
                         
-                        if (!highlightLayer) {
-                            console.log('🔄 Criando camada de highlight...');
-                            
-                            var source = new ol.source.Vector({
-                                format: new ol.format.GeoJSON()
-                            });
-                            
-                            /* Estilo personalizado com as cores definidas */
-                            var style = new ol.style.Style({
-                                stroke: new ol.style.Stroke({
-                                    color: highlightStrokeColor,
-                                    width: 3,
-                                }),
+                        /* Estilo personalizado com as cores definidas */
+                        var style = new ol.style.Style({
+                            stroke: new ol.style.Stroke({
+                                color: highlightStrokeColor,
+                                width: 3,
+                            }),
+                            fill: new ol.style.Fill({
+                                color: highlightFillColor,
+                            }),
+                            image: new ol.style.Circle({
+                                radius: 8,
                                 fill: new ol.style.Fill({
-                                    color: highlightFillColor,
+                                    color: highlightStrokeColor,
                                 }),
-                                image: new ol.style.Circle({
-                                    radius: 8,
-                                    fill: new ol.style.Fill({
-                                        color: highlightStrokeColor,
-                                    }),
-                                    stroke: new ol.style.Stroke({
-                                        color: '#ffffff',
-                                        width: 2,
-                                    }),
+                                stroke: new ol.style.Stroke({
+                                    color: '#ffffff',
+                                    width: 2,
                                 }),
-                            });
-                            
-                            highlightLayer = new ol.layer.Vector({
-                                source: source,
-                                name: 'highlight',
-                                style: style,
-                                zIndex: 7
-                            });
-                            
-                            map.addLayer(highlightLayer);
-                            console.log('✅ Camada de highlight criada com estilo personalizado');
-                        }
+                            }),
+                        });
                         
-                        return highlightLayer;
+                        highlightLayer = new ol.layer.Vector({
+                            source: source,
+                            name: 'highlight',
+                            style: style,
+                            zIndex: 7
+                        });
+                        
+                        map.addLayer(highlightLayer);
+                        console.log('✅ Camada de highlight criada com estilo personalizado');
                     }
                     
-                    function executeHighlightAndFly() {
-                        if (executed) return;
+                    return highlightLayer;
+                }
+                
+                function executeHighlightAndFly() {
+                    if (executed) return;
+                    
+                    var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : null;
+                    
+                    if (!map) {
+                        retryCount++;
+                        if (retryCount < maxRetries) {
+                            console.log('⏳ Aguardando mapa... tentativa ' + retryCount + '/' + maxRetries);
+                            setTimeout(executeHighlightAndFly, 400);
+                        } else {
+                            console.warn('⚠️ Mapa não disponível após ' + maxRetries + ' tentativas');
+                        }
+                        return;
+                    }
+                    
+                    /* Garante que a camada de highlight existe */
+                    var highlightLayer = ensureHighlightLayer(map);
+                    
+                    if (!highlightLayer) {
+                        retryCount++;
+                        if (retryCount < maxRetries) {
+                            console.log('⏳ Aguardando camada de highlight... tentativa ' + retryCount + '/' + maxRetries);
+                            setTimeout(executeHighlightAndFly, 400);
+                        } else {
+                            console.warn('⚠️ Camada de highlight não disponível após ' + maxRetries + ' tentativas');
+                        }
+                        return;
+                    }
+                    
+                    /* Marca como executado para evitar duplicidade */
+                    executed = true;
+                    
+                    console.log('🔄 HighlightAndFlyToGeom - Executando no mapa:', map.getTarget());
+                    
+                    try {
+                        /* Processa a geometria para garantir o formato correto */
+                        var features = null;
                         
-                        var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : null;
+                        /* Se for um objeto Feature */
+                        if (geomData && geomData.type === 'Feature') {
+                            features = new ol.format.GeoJSON().readFeatures(geomData, {
+                                featureProjection: 'EPSG:3857'
+                            });
+                        } 
+                        /* Se for um objeto geometry puro */
+                        else if (geomData && geomData.type && geomData.coordinates) {
+                            var featureObj = {
+                                type: 'Feature',
+                                geometry: geomData,
+                                properties: {}
+                            };
+                            features = new ol.format.GeoJSON().readFeatures(featureObj, {
+                                featureProjection: 'EPSG:3857'
+                            });
+                        } else {
+                            /* Tenta ler diretamente */
+                            features = new ol.format.GeoJSON().readFeatures(geomData, {
+                                featureProjection: 'EPSG:3857'
+                            });
+                        }
                         
-                        if (!map) {
-                            retryCount++;
-                            if (retryCount < maxRetries) {
-                                console.log('⏳ Aguardando mapa... tentativa ' + retryCount + '/' + maxRetries);
-                                setTimeout(executeHighlightAndFly, 400);
-                            } else {
-                                console.warn('⚠️ Mapa não disponível após ' + maxRetries + ' tentativas');
-                            }
+                        if (!features || features.length === 0) {
+                            console.warn('⚠️ Nenhuma feature encontrada');
                             return;
                         }
                         
-                        /* Garante que a camada de highlight existe */
-                        var highlightLayer = ensureHighlightLayer(map);
+                        console.log('📐 Features encontradas:', features.length);
                         
-                        if (!highlightLayer) {
-                            retryCount++;
-                            if (retryCount < maxRetries) {
-                                console.log('⏳ Aguardando camada de highlight... tentativa ' + retryCount + '/' + maxRetries);
-                                setTimeout(executeHighlightAndFly, 400);
-                            } else {
-                                console.warn('⚠️ Camada de highlight não disponível após ' + maxRetries + ' tentativas');
-                            }
-                            return;
+                        /* Marca as features como customizadas */
+                        features.forEach(function(f) { 
+                            f.set('custom', true); 
+                        });
+                        
+                        /* Adiciona à camada de highlight */
+                        highlightLayer.getSource().clear();
+                        highlightLayer.getSource().addFeatures(features);
+                        console.log('✅ Geometria destacada (' + features.length + ' features)');
+                        
+                        /* Calcula o extent para voar */
+                        var extent = ol.extent.createEmpty();
+                        features.forEach(function(feature) {
+                            var geomExtent = feature.getGeometry().getExtent();
+                            ol.extent.extend(extent, geomExtent);
+                        });
+                        
+                        const view = map.getView();
+                        const center = ol.extent.getCenter(extent);
+
+                        if (!ol.extent.isEmpty(extent)) {
+                            console.log('📐 Extent calculado:', extent);
+                            view.animate({
+                                center: center,
+                                zoom: zoomLevel,
+                                duration: 2000
+                            });
+
+                            console.log('✅ Voo para geometria (zoom: ' + zoomLevel + ')');
+                        } else {
+                            console.warn('⚠️ Extent vazio, não foi possível voar');
                         }
-                        
-                        /* Marca como executado para evitar duplicidade */
-                        executed = true;
-                        
-                        console.log('🔄 HighlightAndFlyToGeom - Executando no mapa:', map.getTarget());
-                        
-                        try {
-                            /* Processa a geometria para garantir o formato correto */
-                            var features = null;
-                            
-                            /* Se for um objeto Feature */
-                            if (geomData && geomData.type === 'Feature') {
-                                features = new ol.format.GeoJSON().readFeatures(geomData, {
-                                    featureProjection: 'EPSG:3857'
-                                });
-                            } 
-                            /* Se for um objeto geometry puro */
-                            else if (geomData && geomData.type && geomData.coordinates) {
-                                var featureObj = {
-                                    type: 'Feature',
-                                    geometry: geomData,
-                                    properties: {}
-                                };
-                                features = new ol.format.GeoJSON().readFeatures(featureObj, {
-                                    featureProjection: 'EPSG:3857'
-                                });
-                            } else {
-                                /* Tenta ler diretamente */
-                                features = new ol.format.GeoJSON().readFeatures(geomData, {
-                                    featureProjection: 'EPSG:3857'
-                                });
-                            }
-                            
-                            if (!features || features.length === 0) {
-                                console.warn('⚠️ Nenhuma feature encontrada');
-                                return;
-                            }
-                            
-                            console.log('📐 Features encontradas:', features.length);
-                            
-                            /* Marca as features como customizadas */
-                            features.forEach(function(f) { 
-                                f.set('custom', true); 
-                            });
-                            
-                            /* Adiciona à camada de highlight */
-                            highlightLayer.getSource().clear();
-                            highlightLayer.getSource().addFeatures(features);
-                            console.log('✅ Geometria destacada (' + features.length + ' features)');
-                            
-                            /* Calcula o extent para voar */
-                            var extent = ol.extent.createEmpty();
-                            features.forEach(function(feature) {
-                                var geomExtent = feature.getGeometry().getExtent();
-                                ol.extent.extend(extent, geomExtent);
-                            });
-                            
-                            const view = map.getView();
-                            const center = ol.extent.getCenter(extent);
-
-                            if (!ol.extent.isEmpty(extent)) {
-                                console.log('📐 Extent calculado:', extent);
-                                view.animate({
-                                    center: center,
-                                    zoom: zoomLevel,
-                                    duration: 2000
-                                });
-
-                                console.log('✅ Voo para geometria (zoom: ' + zoomLevel + ')');
-                            } else {
-                                console.warn('⚠️ Extent vazio, não foi possível voar');
-                            }
-                        } catch(e) {
-                            console.error('❌ Erro em HighlightAndFlyToGeom:', e);
-                            /* Se falhar, tenta novamente com retry */
-                            executed = false;
-                            retryCount++;
-                            if (retryCount < maxRetries) {
-                                console.log('⏳ Tentando novamente... ' + retryCount + '/' + maxRetries);
-                                setTimeout(executeHighlightAndFly, 500);
-                            }
+                    } catch(e) {
+                        console.error('❌ Erro em HighlightAndFlyToGeom:', e);
+                        /* Se falhar, tenta novamente com retry */
+                        executed = false;
+                        retryCount++;
+                        if (retryCount < maxRetries) {
+                            console.log('⏳ Tentando novamente... ' + retryCount + '/' + maxRetries);
+                            setTimeout(executeHighlightAndFly, 500);
                         }
                     }
-                    
-                    /* Executa com um pequeno delay inicial */
-                    setTimeout(executeHighlightAndFly, 300);
-                })();
-            ";
+                }
+                
+                /* Executa com um pequeno delay inicial */
+                setTimeout(executeHighlightAndFly, 300);
+            })();
+        ";
 
             return $this;
         } catch (Exception $e) {
