@@ -979,7 +979,7 @@ class OpenLayersMap extends TElement
                         });
                         
                         /* Adiciona à camada de highlight */
-                        highlightLayer.getSource().clear();
+                        /* highlightLayer.getSource().clear(); */
                         highlightLayer.getSource().addFeatures(features);
                         console.log('✅ Geometria destacada (' + features.length + ' features)');
                         
