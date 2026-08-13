@@ -11,7 +11,7 @@ use stdClass;
 
 /**
  * OpenLayersMap Container
- * @version 1.4
+ * @version 1.5
  * @author Marcelo Barreto Nees
  * @copyright Copyright (c) 2025 Marcelo Barreto Nees <marcelo.linux@gmail.com>
  * @license MIT
@@ -44,6 +44,14 @@ class OpenLayersMap extends TElement
     /* ======================================== */
     protected $highlightStrokeColor = 'rgba(149,31,212,1)';
     protected $highlightFillColor = 'rgba(149,31,212,0.20)';
+
+    /* ======================================== */
+    /* NOVAS PROPRIEDADES PARA HIGHLIGHT       */
+    /* ======================================== */
+    protected $highlightEnabled = true;
+    protected $highlightLayerName = 'view_territorio_censo';
+    protected $highlightMinZoom = 15;
+    protected $highlightWfsUrl = 'https://geo.jaraguadosul.sc.gov.br/gs/geoserver-main/PMJS/wms';
 
     /**
      * Class Constructor
@@ -90,18 +98,16 @@ class OpenLayersMap extends TElement
         }
 
         $requiredVersions = [
-            'ol' => '6.5.0',        /* Versão do OpenLayers */
-            'turf' => '5.1.6',      /* Versão do Turf.js */
-            'ol-popup' => '3.0.0'   /* Versão do Popup */
+            'ol' => '6.5.0',
+            'turf' => '5.1.6',
+            'ol-popup' => '3.0.0'
         ];
 
-        /* Adicione esta função para verificar versões */
         $versionCheckJS = "
             function checkLibraryVersions() {
                 const errors = [];
                 const versions = {};
             
-                /* Verifica OpenLayers */
                 if (typeof ol !== 'undefined') {
                     versions.ol = ol.getVersion();
                     console.warn('Versão do OpenLayers:', versions.ol);
@@ -112,7 +118,6 @@ class OpenLayersMap extends TElement
                     errors.push('OpenLayers não carregado');
                 }
             
-                /* Verifica Turf.js */
                 if (typeof turf !== 'undefined') {
                     versions.turf = turf.version || 'indeterminada';
                     console.warn('Versão do Turf.js:', versions.turf);
@@ -123,7 +128,6 @@ class OpenLayersMap extends TElement
                     errors.push('Turf.js não carregado');
                 }
             
-                /* Verifica Popup */
                 if (typeof Popup === 'undefined') {
                     errors.push('Popup não carregado');
                 } else {
@@ -144,15 +148,18 @@ class OpenLayersMap extends TElement
         $showLayerControl = $this->showLayerControl ? 'true' : 'false';
         $restoreConfigData = $this->restoreConfigData ? json_encode($this->restoreConfigData) : 'null';
 
+        /* Configurações de highlight */
+        $highlightEnabled = $this->highlightEnabled ? 'true' : 'false';
+        $highlightLayerName = $this->highlightLayerName;
+        $highlightMinZoom = $this->highlightMinZoom;
+        $highlightWfsUrl = $this->highlightWfsUrl;
+
         /* Garante que o CSS seja carregado primeiro */
         TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.css');
         TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.css');
-        /* Adiciona CSS do mapa se não existir */
         TStyle::importFromFile('vendor/marcelonees/topenlayerseditor/src/OpenLayersEditor/ol-editor.css');
 
-        /* Cria um sistema de carregamento robusto com verificações de segurança */
         TScript::create("
-        /* Função para verificar segurança antes de acessar coordenadas */
         function safeGetCoordinates(geoObj) {
             try {
                 if (!geoObj || !geoObj.geometry || !geoObj.geometry.coordinates) {
@@ -166,15 +173,12 @@ class OpenLayersMap extends TElement
             }
         }
         
-        /* Função principal de inicialização */
         function initializeMap() {
             try {
-                /* Verificação de segurança */
                 if (typeof GeoMapApp === 'undefined') {
                     throw new Error('GeoMapApp não está definido');
                 }
                 
-                /* Configuração do mapa */
                 var config = {
                     target: '{$mapId}',
                     center: {
@@ -186,13 +190,18 @@ class OpenLayersMap extends TElement
                     showLayerControl: {$showLayerControl},
                     restoreConfig: {$restoreConfigData},
                     highlightStrokeColor: '{$this->highlightStrokeColor}',
-                    highlightFillColor: '{$this->highlightFillColor}'
+                    highlightFillColor: '{$this->highlightFillColor}',
+                    /* NOVAS CONFIGURAÇÕES DE HIGHLIGHT */
+                    highlight: {
+                        enabled: {$highlightEnabled},
+                        layerName: '{$highlightLayerName}',
+                        minZoom: {$highlightMinZoom},
+                        wfsUrl: '{$highlightWfsUrl}'
+                    }
                 };
                 
-                /* Inicializa o mapa */
                 GeoMapApp.init(config);
                 
-                /* Processa o JavaScript adicional com tratamento de erros */
                 try {
                     {$this->javascript}
                 } catch(jsError) {
@@ -203,7 +212,6 @@ class OpenLayersMap extends TElement
             }
         }
         
-        /* Carrega os scripts necessários em ordem */
         var requiredScripts = [
             'vendor/marcelonees/plugins/src/OpenLayers/ol.js',
             'vendor/marcelonees/plugins/src/OpenLayers/turf.min.js',
@@ -211,7 +219,6 @@ class OpenLayersMap extends TElement
             'vendor/marcelonees/plugins/src/OpenLayers/olmap.js'
         ];
         
-        /* Função para carregar scripts sequencialmente */
         function loadScript(scripts, callback) {
             if (scripts.length === 0) {
                 callback();
@@ -230,19 +237,15 @@ class OpenLayersMap extends TElement
                 });
         }
         
-        /* Inicia o processo de carregamento */
         loadScript(requiredScripts, function() {
-            /* Verifica se todos os requisitos estão carregados */
             if (typeof ol === 'undefined' || typeof turf === 'undefined' || typeof GeoMapApp === 'undefined') {
                 console.error('Bibliotecas necessárias não carregadas');
                 return;
             }
             
-            /* Executa a inicialização */
             setTimeout(initializeMap, 100);
         });
 
-        /* Após carregar tudo, verifique as versões */
         setTimeout(function() {
             {$versionCheckJS}
         }, 500);        
@@ -254,14 +257,12 @@ class OpenLayersMap extends TElement
      */
     public function show()
     {
-        /* Set container dimensions */
         $style = new TStyle("#{$this->id}");
         $style->width = $this->width;
         $style->height = $this->height;
         $style->border = '1px solid #ccc';
         $style->show();
 
-        /* Create map container */
         $content = new TElement('div');
         $content->id = $this->id;
         $content->class = 'openlayers-map';
@@ -374,6 +375,111 @@ class OpenLayersMap extends TElement
     }
 
     /* ======================================== */
+    /* NOVOS MÉTODOS PARA CONTROLE DE HIGHLIGHT */
+    /* ======================================== */
+
+    /**
+     * Ativa ou desativa o highlight dinamicamente
+     * @param bool $enabled
+     * @return OpenLayersMap
+     */
+    public function setHighlightEnabled($enabled = true)
+    {
+        $this->highlightEnabled = (bool) $enabled;
+
+        $jsEnabled = $this->highlightEnabled ? 'true' : 'false';
+
+        TScript::create("
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.setHighlightEnabled) {
+                GeoMapApp.setHighlightEnabled({$jsEnabled});
+                console.log('🎯 Highlight ' + ({$jsEnabled} ? 'ativado' : 'desativado') + ' via PHP');
+            } else {
+                console.warn('⚠️ GeoMapApp.setHighlightEnabled não disponível');
+            }
+        ");
+
+        return $this;
+    }
+
+    /**
+     * Define a camada de origem do highlight
+     * @param string $layerName Nome da camada WFS
+     * @return OpenLayersMap
+     */
+    public function setHighlightLayer($layerName)
+    {
+        $this->highlightLayerName = $layerName;
+
+        TScript::create("
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.setHighlightLayer) {
+                GeoMapApp.setHighlightLayer('{$layerName}');
+                console.log('🎯 Camada de highlight alterada para: {$layerName}');
+            } else {
+                console.warn('⚠️ GeoMapApp.setHighlightLayer não disponível');
+            }
+        ");
+
+        return $this;
+    }
+
+    /**
+     * Define o zoom mínimo para ativação do highlight
+     * @param int $minZoom
+     * @return OpenLayersMap
+     */
+    public function setHighlightMinZoom($minZoom)
+    {
+        $this->highlightMinZoom = (int) $minZoom;
+
+        TScript::create("
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.setHighlightMinZoom) {
+                GeoMapApp.setHighlightMinZoom({$this->highlightMinZoom});
+                console.log('🎯 Zoom mínimo do highlight alterado para: {$this->highlightMinZoom}');
+            }
+        ");
+
+        return $this;
+    }
+
+    /**
+     * Define a URL do WFS para o highlight
+     * @param string $url
+     * @return OpenLayersMap
+     */
+    public function setHighlightWfsUrl($url)
+    {
+        $this->highlightWfsUrl = $url;
+
+        TScript::create("
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.setHighlightWfsUrl) {
+                GeoMapApp.setHighlightWfsUrl('{$url}');
+                console.log('🎯 URL do WFS alterada para: {$url}');
+            }
+        ");
+
+        return $this;
+    }
+
+    /**
+     * Configura todas as opções de highlight de uma vez
+     * @param array $options Opções: enabled, layerName, minZoom, wfsUrl
+     * @return OpenLayersMap
+     */
+    public function configureHighlight(array $options)
+    {
+        $config = json_encode($options);
+
+        TScript::create("
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.configureHighlight) {
+                GeoMapApp.configureHighlight({$config});
+                console.log('🎯 Highlight configurado:', {$config});
+            }
+        ");
+
+        return $this;
+    }
+
+    /* ======================================== */
     /* MÉTODOS DE CAMADAS                      */
     /* ======================================== */
 
@@ -385,7 +491,6 @@ class OpenLayersMap extends TElement
      */
     public function addLayer($layerName, array $config = [])
     {
-        /* Default configuration */
         $defaultConfig = [
             'type'      => 'tile',
             'visible'   => true,
@@ -397,12 +502,10 @@ class OpenLayersMap extends TElement
 
         $config = array_merge($defaultConfig, $config);
 
-        /* Adiciona a camada via JavaScript */
         $layerConfig = json_encode($config);
         $safeName = addslashes($layerName);
 
         $this->javascript .= "
-            /* Adiciona camada via GeoMapApp */
             if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addLayer) {
                 console.log('📌 Adicionando camada via PHP: {$safeName}');
                 GeoMapApp.addLayer('{$safeName}', {$layerConfig});
@@ -435,32 +538,24 @@ class OpenLayersMap extends TElement
 
     /**
      * Add a marker to the map
-     * NÃO remove o marcador anterior - permite múltiplos marcadores
      */
     public function addMarker($lat, $lng, $label = '')
     {
-        /* Garantir que os valores sejam numéricos */
         $lat = (float)$lat;
         $lng = (float)$lng;
-
-        /* Sanitizar o label */
         $safeLabel = addslashes($label);
 
         $this->javascript .= "
-            /* Verifica se GeoMapApp está disponível */
             if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
                 console.log('Adicionando marcador via PHP:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}'});
                 
-                /* Criar objeto marker com valores numéricos */
                 var marker = {
                     lat: parseFloat({$lat}),
                     lng: parseFloat({$lng}),
                     label: '{$safeLabel}'
                 };
                 
-                /* Verificar se as coordenadas são válidas */
                 if (!isNaN(marker.lat) && !isNaN(marker.lng)) {
-                    /* Adiciona o marcador SEM remover os anteriores */
                     GeoMapApp.addPin(marker);
                 } else {
                     console.error('Coordenadas inválidas:', marker);
@@ -475,7 +570,6 @@ class OpenLayersMap extends TElement
 
     /**
      * Add marker immediately (for static contexts)
-     * NÃO remove o marcador anterior - permite múltiplos marcadores
      */
     public function addMarkerImmediate($lat, $lng, $label = '')
     {
@@ -494,7 +588,6 @@ class OpenLayersMap extends TElement
                 };
                 
                 if (!isNaN(marker.lat) && !isNaN(marker.lng)) {
-                    /* Adiciona o marcador SEM remover os anteriores */
                     GeoMapApp.addPin(marker);
                 } else {
                     console.error('Coordenadas inválidas:', marker);
@@ -536,7 +629,6 @@ class OpenLayersMap extends TElement
      */
     public function addHeatmap(array $points, array $config = [])
     {
-        /* Configurações padrão */
         $defaultConfig = [
             'radius' => 15,
             'blur' => 15,
@@ -548,7 +640,6 @@ class OpenLayersMap extends TElement
 
         $config = array_merge($defaultConfig, $config);
 
-        /* Prepara os pontos no formato adequado */
         $pointsJS = json_encode($points);
         $gradientJS = json_encode($config['gradient']);
 
@@ -558,17 +649,14 @@ class OpenLayersMap extends TElement
                     throw new Error('Bibliotecas necessárias não carregadas');
                 }
 
-                /* Obtém o último mapa criado */
                 var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : (GeoMapApp.getMap ? GeoMapApp.getMap() : null);
                 if (!map) {
                     console.warn('⚠️ Nenhum mapa disponível para heatmap');
                     return;
                 }
 
-                /* Cria uma fonte vetorial com os pontos */
                 var heatmapSource = new ol.source.Vector();
                 
-                /* Adiciona os pontos como features */
                 var features = [];
                 var points = {$pointsJS};
                 
@@ -577,7 +665,6 @@ class OpenLayersMap extends TElement
                         geometry: new ol.geom.Point(ol.proj.fromLonLat([point[0], point[1]]))
                     });
                     
-                    /* Define a intensidade (weight) se fornecida */
                     if (point.length > 2) {
                         feature.set('weight', point[2]);
                     }
@@ -587,7 +674,6 @@ class OpenLayersMap extends TElement
                 
                 heatmapSource.addFeatures(features);
                 
-                /* Cria a camada de heatmap */
                 var heatmapLayer = new ol.layer.Heatmap({
                     source: heatmapSource,
                     blur: {$config['blur']},
@@ -598,11 +684,9 @@ class OpenLayersMap extends TElement
                     name: 'heatmap'
                 });
                 
-                /* Adiciona ao mapa */
                 map.addLayer(heatmapLayer);
                 console.log('Camada de heatmap adicionada com sucesso');
                 
-                /* Armazena a referência para possível remoção posterior */
                 if (typeof GeoMapApp.heatmapLayers === 'undefined') {
                     GeoMapApp.heatmapLayers = [];
                 }
@@ -641,7 +725,6 @@ class OpenLayersMap extends TElement
 
     /**
      * Draw a circle on the map
-     * OPERA NO ÚLTIMO MAPA CRIADO
      */
     public function DrawCircleOnLonLat($lon, $lat, $radius = 300, $strokeColor = 'rgba(255,15,15)', $fillColor = 'rgba(255,15,15, 0.1)')
     {
@@ -678,34 +761,27 @@ class OpenLayersMap extends TElement
 
     public function parseGeoJson($geom)
     {
-        /* Primeiro decode para remover escapes (se necessário) */
         $decoded = json_decode($geom);
 
-        /* Se ainda for string (caso de escapes), faz decode novamente */
         if (is_string($decoded)) {
             $decoded = json_decode($decoded);
         }
 
-        /* Verifica se é um objeto válido */
         if (!is_object($decoded)) {
             throw new Exception("Formato GeoJSON inválido");
         }
 
-        /* Caso FeatureCollection */
         if ($decoded->type === 'FeatureCollection') {
-            /* Pega a primeira feature (você pode adaptar para múltiplas features se necessário) */
             if (empty($decoded->features)) {
                 throw new Exception("FeatureCollection sem features");
             }
 
             $feature = $decoded->features[0];
-            return $feature->geometry; /* Retorna o objeto geometry */
-        }
-        /* Caso Feature individual */ elseif ($decoded->type === 'Feature') {
-            return $decoded->geometry; /* Retorna o objeto geometry */
-        }
-        /* Caso direto (Geometry Object) */ else {
-            return $decoded; /* Retorna o próprio objeto (já é a geometria) */
+            return $feature->geometry;
+        } elseif ($decoded->type === 'Feature') {
+            return $decoded->geometry;
+        } else {
+            return $decoded;
         }
     }
 
@@ -734,35 +810,23 @@ class OpenLayersMap extends TElement
 
     /**
      * Highlight and fly to a geometry
-     * OPERA NO ÚLTIMO MAPA CRIADO COM RETRY AUTOMÁTICO
-     * CORRIGIDO: Suporte a GeometryCollection
      */
     public function HighlightAndFlyToGeom($geom, $z = 15)
     {
         try {
-            /* Decodifica o JSON da geometria */
             $geoJson = json_decode($geom);
 
-            /* Verifica se precisa decodificar novamente */
             if (is_string($geoJson)) {
                 $geoJson = json_decode($geoJson);
             }
 
-            /* VERIFICAÇÃO CRÍTICA - Garante que $geoJson não seja null */
             if ($geoJson === null) {
                 throw new Exception('Falha ao decodificar JSON da geometria. String inválida: ' . substr($geom, 0, 100));
             }
 
-            /* ======================================== */
-            /* NOVA VALIDAÇÃO PARA GEOMETRYCOLLECTION   */
-            /* ======================================== */
             if ($geoJson && isset($geoJson->type) && $geoJson->type === 'GeometryCollection') {
-                /* Extrai a primeira geometria do GeometryCollection */
                 if (isset($geoJson->geometries) && is_array($geoJson->geometries) && count($geoJson->geometries) > 0) {
-                    /* Pega a primeira geometria da coleção */
                     $firstGeometry = $geoJson->geometries[0];
-
-                    /* Converte para Feature para compatibilidade */
                     $geoJson = (object)[
                         'type' => 'Feature',
                         'geometry' => $firstGeometry,
@@ -773,15 +837,13 @@ class OpenLayersMap extends TElement
                 }
             }
 
-            /* Verifica se é uma FeatureCollection */
             if (
                 $geoJson && isset($geoJson->type) && $geoJson->type === 'FeatureCollection'
                 && isset($geoJson->features) && count($geoJson->features) > 0
             ) {
-                $geoJson = $geoJson->features[0]; /* Usa a primeira feature */
+                $geoJson = $geoJson->features[0];
             }
 
-            /* Verifica se é um MultiLineString com features incorporadas */
             if (
                 $geoJson && isset($geoJson->type) && $geoJson->type === 'MultiLineString'
                 && isset($geoJson->features)
@@ -794,12 +856,10 @@ class OpenLayersMap extends TElement
                 ];
             }
 
-            /* Verifica se é um Polygon puro e converte para Feature */
             if ($geoJson && isset($geoJson->type) && $geoJson->type === 'Polygon') {
                 if (!isset($geoJson->coordinates) || !is_array($geoJson->coordinates)) {
                     throw new Exception('Estrutura de Polygon inválida');
                 }
-                /* Verifica se tem pelo menos um anel com pelo menos 4 pontos (polígono fechado) */
                 if (count($geoJson->coordinates[0]) < 4) {
                     throw new Exception('Polygon deve ter pelo menos 4 pontos no anel exterior');
                 }
@@ -812,7 +872,6 @@ class OpenLayersMap extends TElement
                 ];
             }
 
-            /* Verifica se é um MultiPolygon puro e converte para Feature */
             if ($geoJson && isset($geoJson->type) && $geoJson->type === 'MultiPolygon') {
                 if (!isset($geoJson->coordinates) || !is_array($geoJson->coordinates)) {
                     throw new Exception('Estrutura de MultiPolygon inválida');
@@ -826,9 +885,7 @@ class OpenLayersMap extends TElement
                 ];
             }
 
-            /* VALIDAÇÃO FINAL - Garante que temos geometry e coordinates */
             if (!$geoJson || !isset($geoJson->geometry) || !isset($geoJson->geometry->coordinates)) {
-                /* Se não tiver geometry, tenta usar o próprio objeto como geometry */
                 if (isset($geoJson->coordinates) && isset($geoJson->type)) {
                     $tempGeo = $geoJson;
                     $geoJson = (object)[
@@ -845,9 +902,7 @@ class OpenLayersMap extends TElement
             $strokeColor = $this->highlightStrokeColor;
             $fillColor = $this->highlightFillColor;
 
-            /* Gera o JavaScript com retry automático e CRIA a camada de highlight se não existir */
             $this->javascript .= "
-            /* Função interna com retry para HighlightAndFlyToGeom */
             (function() {
                 var geomData = {$geomString};
                 var zoomLevel = {$z};
@@ -869,7 +924,6 @@ class OpenLayersMap extends TElement
                             format: new ol.format.GeoJSON()
                         });
                         
-                        /* Estilo personalizado com as cores definidas */
                         var style = new ol.style.Style({
                             stroke: new ol.style.Stroke({
                                 color: highlightStrokeColor,
@@ -920,7 +974,6 @@ class OpenLayersMap extends TElement
                         return;
                     }
                     
-                    /* Garante que a camada de highlight existe */
                     var highlightLayer = ensureHighlightLayer(map);
                     
                     if (!highlightLayer) {
@@ -934,22 +987,18 @@ class OpenLayersMap extends TElement
                         return;
                     }
                     
-                    /* Marca como executado para evitar duplicidade */
                     executed = true;
                     
                     console.log('🔄 HighlightAndFlyToGeom - Executando no mapa:', map.getTarget());
                     
                     try {
-                        /* Processa a geometria para garantir o formato correto */
                         var features = null;
                         
-                        /* Se for um objeto Feature */
                         if (geomData && geomData.type === 'Feature') {
                             features = new ol.format.GeoJSON().readFeatures(geomData, {
                                 featureProjection: 'EPSG:3857'
                             });
                         } 
-                        /* Se for um objeto geometry puro */
                         else if (geomData && geomData.type && geomData.coordinates) {
                             var featureObj = {
                                 type: 'Feature',
@@ -960,7 +1009,6 @@ class OpenLayersMap extends TElement
                                 featureProjection: 'EPSG:3857'
                             });
                         } else {
-                            /* Tenta ler diretamente */
                             features = new ol.format.GeoJSON().readFeatures(geomData, {
                                 featureProjection: 'EPSG:3857'
                             });
@@ -973,17 +1021,13 @@ class OpenLayersMap extends TElement
                         
                         console.log('📐 Features encontradas:', features.length);
                         
-                        /* Marca as features como customizadas */
                         features.forEach(function(f) { 
                             f.set('custom', true); 
                         });
                         
-                        /* Adiciona à camada de highlight */
-                        /* highlightLayer.getSource().clear(); */
                         highlightLayer.getSource().addFeatures(features);
                         console.log('✅ Geometria destacada (' + features.length + ' features)');
                         
-                        /* Calcula o extent para voar */
                         var extent = ol.extent.createEmpty();
                         features.forEach(function(feature) {
                             var geomExtent = feature.getGeometry().getExtent();
@@ -1007,7 +1051,6 @@ class OpenLayersMap extends TElement
                         }
                     } catch(e) {
                         console.error('❌ Erro em HighlightAndFlyToGeom:', e);
-                        /* Se falhar, tenta novamente com retry */
                         executed = false;
                         retryCount++;
                         if (retryCount < maxRetries) {
@@ -1017,7 +1060,6 @@ class OpenLayersMap extends TElement
                     }
                 }
                 
-                /* Executa com um pequeno delay inicial */
                 setTimeout(executeHighlightAndFly, 300);
             })();
         ";
@@ -1031,7 +1073,6 @@ class OpenLayersMap extends TElement
 
     /**
      * Highlight a geometry
-     * OPERA NO ÚLTIMO MAPA CRIADO
      */
     public function HighlightGeom($geom, $z = 10)
     {
@@ -1064,7 +1105,6 @@ class OpenLayersMap extends TElement
 
     /**
      * Clear all Geom on the Map
-     * OPERA NO ÚLTIMO MAPA CRIADO
      */
     public function clearGeomSource()
     {
@@ -1093,7 +1133,6 @@ class OpenLayersMap extends TElement
 
     /**
      * Add layer immediately (for static contexts)
-     * OPERA NO ÚLTIMO MAPA CRIADO
      */
     public function addLayerImmediate($layerName, array $config = [])
     {
@@ -1128,7 +1167,6 @@ class OpenLayersMap extends TElement
     public function configStroke($strokeColor = 'rgba(149,31,212,1)', $fillColor = 'rgba(149,31,212,0.20)')
     {
         try {
-            /* Armazena as cores para uso futuro */
             $this->highlightStrokeColor = $strokeColor;
             $this->highlightFillColor = $fillColor;
 
@@ -1227,8 +1265,6 @@ class OpenLayersMap extends TElement
         return $this;
     }
 
-
-
     /**
      * Set map dimensions
      */
@@ -1281,8 +1317,6 @@ class OpenLayersMap extends TElement
         $this->elements[] = array($title, $object);
     }
 
-
-
     /**
      * addJsonMarker
      */
@@ -1304,8 +1338,6 @@ class OpenLayersMap extends TElement
                 $this->addMarker($lat, $lng, $description);
         }
     }
-
-
 
     /**
      * __set
@@ -1380,13 +1412,11 @@ class OpenLayersMap extends TElement
                     return;
                 }
                 
-                /* Remove camada de edição anterior se existir */
                 var oldLayer = map.getLayers().getArray().find(l => l.get('name') === 'edit_layer');
                 if (oldLayer) {
                     map.removeLayer(oldLayer);
                 }
                 
-                /* Cria fonte e camada de edição */
                 var source = new ol.source.Vector();
                 
                 if ({$geomJson}) {
@@ -1413,7 +1443,6 @@ class OpenLayersMap extends TElement
                 
                 map.addLayer(layer);
                 
-                /* Armazena referências */
                 window._editLayer = layer;
                 window._editSource = source;
                 
@@ -1444,7 +1473,6 @@ class OpenLayersMap extends TElement
                             featureProjection: 'EPSG:3857'
                         });
                         
-                        /* Atualiza o campo hidden */
                         var geomField = document.getElementById('geom');
                         if (geomField) {
                             geomField.value = geomJson;
