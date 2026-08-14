@@ -37,6 +37,7 @@ class OpenLayersMap extends TElement
     /* ======================================== */
     protected $configFieldId = null;
     protected $showLayerControl = true;
+    protected $layerControlVisible = true;
     protected $restoreConfigData = null;
 
     /* ======================================== */
@@ -46,7 +47,7 @@ class OpenLayersMap extends TElement
     protected $highlightFillColor = 'rgba(149,31,212,0.20)';
 
     /* ======================================== */
-    /* NOVAS PROPRIEDADES PARA HIGHLIGHT       */
+    /* PROPRIEDADES PARA HIGHLIGHT             */
     /* ======================================== */
     protected $highlightEnabled = true;
     protected $highlightLayerName = 'view_territorio_censo';
@@ -146,6 +147,7 @@ class OpenLayersMap extends TElement
         $mapId = $this->id;
         $configFieldId = $this->configFieldId ? $this->configFieldId : '';
         $showLayerControl = $this->showLayerControl ? 'true' : 'false';
+        $layerControlVisible = $this->layerControlVisible ? 'true' : 'false';
         $restoreConfigData = $this->restoreConfigData ? json_encode($this->restoreConfigData) : 'null';
 
         /* Configurações de highlight */
@@ -188,10 +190,10 @@ class OpenLayersMap extends TElement
                     zoom: {$this->z},
                     configField: '{$configFieldId}',
                     showLayerControl: {$showLayerControl},
+                    layerControlVisible: {$layerControlVisible},
                     restoreConfig: {$restoreConfigData},
                     highlightStrokeColor: '{$this->highlightStrokeColor}',
                     highlightFillColor: '{$this->highlightFillColor}',
-                    /* NOVAS CONFIGURAÇÕES DE HIGHLIGHT */
                     highlight: {
                         enabled: {$highlightEnabled},
                         layerName: '{$highlightLayerName}',
@@ -295,6 +297,28 @@ class OpenLayersMap extends TElement
     public function setShowLayerControl($show)
     {
         $this->showLayerControl = (bool) $show;
+        $this->layerControlVisible = (bool) $show;
+        return $this;
+    }
+
+    /**
+     * Mostra ou oculta o controle de camadas completamente
+     * @param bool $show True para mostrar, False para ocultar
+     * @return OpenLayersMap
+     */
+    public function showLayerControl($show = true)
+    {
+        $this->layerControlVisible = (bool) $show;
+
+        $this->javascript .= "
+            if (typeof GeoMapApp !== 'undefined' && GeoMapApp.showLayerControl) {
+                GeoMapApp.showLayerControl(" . ($show ? 'true' : 'false') . ");
+                console.log('🎯 Controle de camadas ' + (" . ($show ? 'true' : 'false') . " ? 'mostrado' : 'oculto'));
+            } else {
+                console.warn('⚠️ GeoMapApp.showLayerControl não disponível');
+            }
+        ";
+
         return $this;
     }
 
@@ -361,21 +385,24 @@ class OpenLayersMap extends TElement
     }
 
     /**
-     * Alterna a visibilidade do controle de camadas
+     * Alterna a visibilidade do controle de camadas (recolher/expandir)
      * @return OpenLayersMap
      */
     public function toggleLayerControl()
     {
-        TScript::create("
+        $this->javascript .= "
             if (typeof GeoMapApp !== 'undefined' && GeoMapApp.toggleLayerControl) {
                 GeoMapApp.toggleLayerControl();
+                console.log('🔄 Controle de camadas alternado');
+            } else {
+                console.warn('⚠️ GeoMapApp.toggleLayerControl não disponível');
             }
-        ");
+        ";
         return $this;
     }
 
     /* ======================================== */
-    /* NOVOS MÉTODOS PARA CONTROLE DE HIGHLIGHT */
+    /* MÉTODOS PARA CONTROLE DE HIGHLIGHT      */
     /* ======================================== */
 
     /**
@@ -392,7 +419,7 @@ class OpenLayersMap extends TElement
         TScript::create("
             if (typeof GeoMapApp !== 'undefined' && GeoMapApp.setHighlightEnabled) {
                 GeoMapApp.setHighlightEnabled({$jsEnabled});
-                console.log('🎯 Highlight ' + ({$jsEnabled} ? 'ativado' : 'desativado') + ' via PHP');
+                console.log('🎯 Highlight ' + ({$jsEnabled} ? 'ativado' : 'desativado') . ' via PHP');
             } else {
                 console.warn('⚠️ GeoMapApp.setHighlightEnabled não disponível');
             }
