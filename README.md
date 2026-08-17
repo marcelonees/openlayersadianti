@@ -165,10 +165,10 @@ Interface visual para o usuário gerenciar a visibilidade e opacidade das camada
 // Ativa o controle de camadas (padrão: ativo)
 $map->setShowLayerControl(true);
 
-// Alterna a visibilidade do controle
+// Mostra ou oculta completamente o controle
 $map->toggleLayerControl();
 
-// Esconde o controle
+// Alterna a visibilidade do controle (recolher/expandir)
 $map->setShowLayerControl(false);
 ```
 
