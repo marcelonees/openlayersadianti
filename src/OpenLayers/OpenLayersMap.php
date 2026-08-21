@@ -564,22 +564,29 @@ class OpenLayersMap extends TElement
     }
 
     /**
-     * Add a marker to the map
+     * Add a marker to the map with optional icon
+     * @param float $lat Latitude
+     * @param float $lng Longitude  
+     * @param string $label Label text or HTML
+     * @param string $icon Font Awesome icon class (e.g., 'fa fa-store')
+     * @return OpenLayersMap
      */
-    public function addMarker($lat, $lng, $label = '')
+    public function addMarker($lat, $lng, $label = '', $icon = '')
     {
         $lat = (float)$lat;
         $lng = (float)$lng;
         $safeLabel = addslashes($label);
+        $safeIcon = addslashes($icon);
 
         $this->javascript .= "
             if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
-                console.log('Adicionando marcador via PHP:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}'});
+                console.log('Adicionando marcador via PHP:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}', icon: '{$safeIcon}'});
                 
                 var marker = {
                     lat: parseFloat({$lat}),
                     lng: parseFloat({$lng}),
-                    label: '{$safeLabel}'
+                    label: '{$safeLabel}',
+                    icon: '{$safeIcon}'
                 };
                 
                 if (!isNaN(marker.lat) && !isNaN(marker.lng)) {
@@ -598,20 +605,22 @@ class OpenLayersMap extends TElement
     /**
      * Add marker immediately (for static contexts)
      */
-    public function addMarkerImmediate($lat, $lng, $label = '')
+    public function addMarkerImmediate($lat, $lng, $label = '', $icon = '')
     {
         $lat = (float)$lat;
         $lng = (float)$lng;
         $safeLabel = addslashes($label);
+        $safeIcon = addslashes($icon);
 
         $js = "
             if (typeof GeoMapApp !== 'undefined' && GeoMapApp.addPin) {
-                console.log('Adicionando marcador imediato via PHP:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}'});
+                console.log('Adicionando marcador imediato via PHP:', {lat: {$lat}, lng: {$lng}, label: '{$safeLabel}', icon: '{$safeIcon}'});
                 
                 var marker = {
                     lat: parseFloat({$lat}),
                     lng: parseFloat({$lng}),
-                    label: '{$safeLabel}'
+                    label: '{$safeLabel}',
+                    icon: '{$safeIcon}'
                 };
                 
                 if (!isNaN(marker.lat) && !isNaN(marker.lng)) {
@@ -1360,9 +1369,10 @@ class OpenLayersMap extends TElement
             if (!empty($point->latitude))   $lat = $point->latitude;
 
             if (!empty($point->description)) $description = $point->description;
+            if (!empty($point->icon))        $icon = $point->icon;
 
             if (!empty($lat) && !empty($lng))
-                $this->addMarker($lat, $lng, $description);
+                $this->addMarker($lat, $lng, $description, $icon ?? '');
         }
     }
 

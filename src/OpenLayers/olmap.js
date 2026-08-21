@@ -88,6 +88,54 @@
     let _wfsRequestTimer = null;
     let _lastWfsData = null;
 
+    /* Mapeamento de ícones Font Awesome para caracteres */
+    const _iconMap = {
+      "fa fa-map-marker-alt": "",
+      "fa fa-store": "",
+      "fa fa-home": "",
+      "fa fa-utensils": "",
+      "fa fa-wrench": "",
+      "fa fa-hospital": "",
+      "fa fa-school": "",
+      "fa fa-building": "",
+      "fa fa-tree": "",
+      "fa fa-car": "",
+      "fa fa-bus": "",
+      "fa fa-bicycle": "",
+      "fa fa-camera": "",
+      "fa fa-coffee": "",
+      "fa fa-cutlery": "",
+      "fa fa-diamond": "",
+      "fa fa-fire": "",
+      "fa fa-flag": "",
+      "fa fa-flask": "",
+      "fa fa-futbol": "",
+      "fa fa-gift": "",
+      "fa fa-glass": "",
+      "fa fa-heart": "",
+      "fa fa-key": "",
+      "fa fa-leaf": "",
+      "fa fa-music": "",
+      "fa fa-paw": "",
+      "fa fa-phone": "",
+      "fa fa-plane": "",
+      "fa fa-rocket": "",
+      "fa fa-shopping-cart": "",
+      "fa fa-star": "",
+      "fa fa-sun": "",
+      "fa fa-tag": "",
+      "fa fa-thumbs-up": "",
+      "fa fa-trophy": "",
+      "fa fa-truck": "",
+      "fa fa-umbrella": "",
+      "fa fa-university": "",
+      "fa fa-user": "",
+      "fa fa-users": "",
+      "fa fa-video": "",
+      "fa fa-volume-up": "",
+      "fa fa-wifi": "",
+    };
+
     /* Estilos centralizados */
     const _styles = {
       highlightImovel: new ol.style.Style({
@@ -175,6 +223,58 @@
     function _getLastPopup() {
       const instance = _getLastMapInstance();
       return instance ? instance.popup : null;
+    }
+
+    /**
+     * Cria um canvas com ícone Font Awesome
+     */
+    function _createIconCanvas(iconClass, color = "#e74c3c", size = 32) {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+
+      // Fundo circular branco
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2 - 2, 0, 2 * Math.PI);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Ícone
+      ctx.fillStyle = color;
+      ctx.font = `${size - 8}px FontAwesome`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // Extrai a classe do ícone
+      let iconChar = ""; // padrão (fa-flag)
+
+      if (iconClass) {
+        // Tenta encontrar o caractere correspondente
+        for (const [key, value] of Object.entries(_iconMap)) {
+          if (
+            iconClass.includes(key) ||
+            iconClass.includes(key.replace("fa ", ""))
+          ) {
+            iconChar = value;
+            break;
+          }
+        }
+
+        // Extrai a cor do estilo inline se presente
+        const colorMatch = iconClass.match(/color:\s*([^;]+)/);
+        if (colorMatch) {
+          ctx.fillStyle = colorMatch[1].trim();
+          ctx.strokeStyle = colorMatch[1].trim();
+        }
+      }
+
+      ctx.fillText(iconChar, size / 2, size / 2 + 1);
+
+      return canvas;
     }
 
     /* ======================================== */
@@ -1015,8 +1115,37 @@
           const geometry = feature.getGeometry();
           const isPoint = geometry && geometry.getType() === "Point";
           const label = feature.get("label") || "";
+          const iconClass = feature.get("icon") || "";
 
           if (isPoint && isCustom) {
+            // Se tem ícone, usa o canvas com ícone
+            if (iconClass) {
+              const canvas = _createIconCanvas(iconClass);
+              return new ol.style.Style({
+                image: new ol.style.Icon({
+                  img: canvas,
+                  imgSize: [canvas.width, canvas.height],
+                  anchor: [0.5, 1],
+                  scale: 1,
+                }),
+                text: new ol.style.Text({
+                  font: "12px Calibri,sans-serif",
+                  text: label,
+                  fill: new ol.style.Fill({
+                    color: "#000",
+                  }),
+                  stroke: new ol.style.Stroke({
+                    color: "#fff",
+                    width: 3,
+                  }),
+                  offsetY: -20,
+                  textAlign: "center",
+                  textBaseline: "bottom",
+                }),
+              });
+            }
+
+            // Fallback para marcador padrão
             return new ol.style.Style({
               image: new ol.style.Icon({
                 anchor: [0.5, 1],
@@ -1506,7 +1635,7 @@
     }
 
     /* ======================================== */
-    /* _addPin                                  */
+    /* _addPin - com suporte a ícones          */
     /* ======================================== */
     function _addPin(marker, flyTo = true, removePrevious = false) {
       const map = _getLastMap();
@@ -1524,6 +1653,7 @@
       }
 
       console.log("Coordenadas lng, lat:", lng, lat);
+      console.log("Ícone:", marker.icon);
 
       if (removePrevious) {
         const oldPinLayer = map
@@ -1543,6 +1673,8 @@
           ol.proj.transform([lat, lng], "EPSG:4326", "EPSG:3857"),
         ),
         name: marker.label || "",
+        icon: marker.icon || "",
+        custom: true,
       });
 
       const vectorSource = new ol.source.Vector({
@@ -1553,10 +1685,68 @@
         source: vectorSource,
         name: "pin",
         style: function (feature) {
-          const label = feature.get("name");
-          const style = _styles.markerLabel.clone();
-          style.getText().setText(label);
-          return [_styles.defaultMarker, style];
+          const label = feature.get("name") || "";
+          const iconClass = feature.get("icon") || "";
+
+          const styles = [];
+
+          // Se tem ícone, cria um canvas com o ícone
+          if (iconClass) {
+            // Extrai a cor do ícone do label ou usa padrão
+            let color = "#e74c3c";
+            const colorMatch = label.match(/color:\s*([^;]+)/);
+            if (colorMatch) {
+              color = colorMatch[1].trim();
+            }
+
+            const canvas = _createIconCanvas(iconClass, color);
+            styles.push(
+              new ol.style.Style({
+                image: new ol.style.Icon({
+                  img: canvas,
+                  imgSize: [canvas.width, canvas.height],
+                  anchor: [0.5, 1],
+                  scale: 1,
+                }),
+              }),
+            );
+          } else {
+            // Fallback para marcador padrão
+            styles.push(
+              new ol.style.Style({
+                image: new ol.style.Icon({
+                  anchor: [0.5, 1],
+                  src: "vendor/marcelonees/plugins/src/OpenLayers/marker-icon.png",
+                  scale: 0.5,
+                }),
+              }),
+            );
+          }
+
+          // Adiciona o label se existir (remove HTML)
+          const cleanLabel = label.replace(/<[^>]*>/g, "").trim();
+          if (cleanLabel) {
+            styles.push(
+              new ol.style.Style({
+                text: new ol.style.Text({
+                  font: "12px Calibri,sans-serif",
+                  text: cleanLabel,
+                  fill: new ol.style.Fill({
+                    color: "#000",
+                  }),
+                  stroke: new ol.style.Stroke({
+                    color: "#fff",
+                    width: 3,
+                  }),
+                  offsetY: -20,
+                  textAlign: "center",
+                  textBaseline: "bottom",
+                }),
+              }),
+            );
+          }
+
+          return styles;
         },
       });
 

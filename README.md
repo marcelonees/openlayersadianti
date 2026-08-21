@@ -122,22 +122,65 @@ $map->addLayer('osm', [
 $map->removeLayer('nome_da_camada');
 ```
 
-### 3. Adição de Marcadores
+### 3. Adição de Marcadores com Ícones
+
+O componente suporta ícones **Font Awesome** nos marcadores, permitindo personalização visual por tipo de ponto.
 
 ```php
-// Adiciona um marcador simples
+// Marcador simples
 $map->addMarker(-26.504104, -49.0904928, 'Meu Ponto');
+
+// Marcador com ícone Font Awesome
+$map->addMarker(-26.504104, -49.0904928, 'Loja', 'fa fa-store color:#e67e22');
+
+// Mapeamento de ícones por tipo
+$iconMap = [
+    'predio_publico' => 'fa fa-building color:#3498db',
+    'praca' => 'fa fa-tree color:#27ae60',
+    'poste' => 'fa fa-bolt color:#f39c12',
+    'ponte' => 'fa fa-road color:#7f8c8d',
+    'ps' => 'fa fa-hospital color:#e74c3c',
+    'cmei' => 'fa fa-child color:#9b59b6',
+    'emeb' => 'fa fa-school color:#2ecc71',
+    'iniciativa_privada' => 'fa fa-store color:#e67e22',
+    'camera' => 'fa fa-video color:#e74c3c',
+    'padrao' => 'fa fa-map-marker-alt color:#e74c3c'
+];
+
+// Uso com tipos
+foreach ($pontos as $object) {
+    if ($object->lat && $object->lon) {
+        $tipo = $object->tipo ?? 'padrao';
+        $icon = $iconMap[$tipo] ?? $iconMap['padrao'];
+        $map->addMarker($object->lon, $object->lat, $object->descricao, $icon);
+    }
+}
 
 // Adiciona múltiplos marcadores via JSON
 $json = '[
-    {"lat": -26.504104, "lng": -49.0904928, "description": "Ponto 1"},
-    {"lat": -26.505000, "lng": -49.091500, "description": "Ponto 2"}
+    {"lat": -26.504104, "lng": -49.0904928, "description": "Ponto 1", "icon": "fa fa-store"},
+    {"lat": -26.505000, "lng": -49.091500, "description": "Ponto 2", "icon": "fa fa-hospital"}
 ]';
 $map->addJsonMarker($json);
 
 // Adiciona marcador imediato (para contextos estáticos)
-$map->addMarkerImmediate(-26.504104, -49.0904928, 'Ponto Rápido');
+$map->addMarkerImmediate(-26.504104, -49.0904928, 'Ponto Rápido', 'fa fa-flag');
 ```
+
+#### Ícones Font Awesome Disponíveis
+
+| Tipo | Ícone | Classe CSS |
+|------|-------|------------|
+| Prédio Público | 🏢 | `fa fa-building` |
+| Praça | 🌳 | `fa fa-tree` |
+| Poste | ⚡ | `fa fa-bolt` |
+| Ponte | 🛣️ | `fa fa-road` |
+| Posto de Saúde | 🏥 | `fa fa-hospital` |
+| CMEI | 👶 | `fa fa-child` |
+| EMEB | 🏫 | `fa fa-school` |
+| Iniciativa Privada | 🏪 | `fa fa-store` |
+| Câmera | 📹 | `fa fa-video` |
+| Padrão | 📍 | `fa fa-map-marker-alt` |
 
 ### 4. Persistência de Configurações
 
@@ -277,7 +320,7 @@ Além das funcionalidades via PHP, o componente expõe um objeto global `GeoMapA
 | `GeoMapApp.init(config)` | Inicializa o mapa com as configurações fornecidas | `GeoMapApp.init({ target: 'map', center: { lat: -26.5, lng: -49.09 }, zoom: 12 })` |
 | `GeoMapApp.addLayer(name, config)` | Adiciona uma camada dinamicamente | `GeoMapApp.addLayer('nova', { type: 'wms', url: '...' })` |
 | `GeoMapApp.removeLayer(name)` | Remove uma camada | `GeoMapApp.removeLayer('nome')` |
-| `GeoMapApp.addPin(marker)` | Adiciona um marcador | `GeoMapApp.addPin({ lat: -26.5, lng: -49.09, label: 'Ponto' })` |
+| `GeoMapApp.addPin(marker)` | Adiciona um marcador | `GeoMapApp.addPin({ lat: -26.5, lng: -49.09, label: 'Ponto', icon: 'fa fa-store' })` |
 | `GeoMapApp.flyTo(location, zoom)` | Anima o mapa até uma localização | `GeoMapApp.flyTo([-49.09, -26.50], 15)` |
 | `GeoMapApp.highlightGeometry(geom)` | Destaca uma geometria no mapa | `GeoMapApp.highlightGeometry(geoJson)` |
 | `GeoMapApp.clearHighlight()` | Limpa todos os destaques | `GeoMapApp.clearHighlight()` |
@@ -373,14 +416,57 @@ $map->addLayer('limites', [
 ]);
 
 // Adiciona marcador
-$map->addMarker(-26.504104, -49.0904928, 'Ponto Central');
+$map->addMarker(-26.504104, -49.0904928, 'Ponto Central', 'fa fa-map-marker-alt color:#e74c3c');
 
 // Exibe o mapa
 $map->show();
 ?>
 ```
 
-### Exemplo 2: Mapa com Persistência de Configuração
+### Exemplo 2: Mapa com Marcadores e Ícones Personalizados por Tipo
+
+```php
+<?php
+use MarceloNees\Plugins\OpenLayers\OpenLayersMap;
+
+// Criação do mapa
+$map = new OpenLayersMap(-26.504104, -49.0904928, 14);
+$map->setSize('100%', '600px');
+
+// Mapeamento de ícones por tipo
+$iconMap = [
+    'predio_publico' => 'fa fa-building color:#3498db',
+    'praca' => 'fa fa-tree color:#27ae60',
+    'poste' => 'fa fa-bolt color:#f39c12',
+    'ponte' => 'fa fa-road color:#7f8c8d',
+    'ps' => 'fa fa-hospital color:#e74c3c',
+    'cmei' => 'fa fa-child color:#9b59b6',
+    'emeb' => 'fa fa-school color:#2ecc71',
+    'iniciativa_privada' => 'fa fa-store color:#e67e22',
+    'camera' => 'fa fa-video color:#c0392b',
+    'padrao' => 'fa fa-map-marker-alt color:#e74c3c'
+];
+
+// Adiciona marcadores com ícones baseados no tipo
+foreach ($pontos as $ponto) {
+    if ($ponto->lat && $ponto->lon) {
+        $tipo = isset($iconMap[$ponto->tipo]) ? $ponto->tipo : 'padrao';
+        $icon = $iconMap[$tipo];
+        
+        $map->addMarker(
+            $ponto->lon,
+            $ponto->lat,
+            $ponto->descricao,
+            $icon
+        );
+    }
+}
+
+$map->show();
+?>
+```
+
+### Exemplo 3: Mapa com Persistência de Configuração
 
 ```php
 <?php
@@ -443,7 +529,7 @@ class MeuForm extends TPage
 ?>
 ```
 
-### Exemplo 3: Mapa com Heatmap e Edição
+### Exemplo 4: Mapa com Heatmap e Edição
 
 ```php
 <?php
@@ -525,8 +611,8 @@ $map->show();
 - `addLayerImmediate($name, $config)`
 
 #### Marcadores
-- `addMarker($lat, $lng, $label)`
-- `addMarkerImmediate($lat, $lng, $label)`
+- `addMarker($lat, $lng, $label, $icon = '')`
+- `addMarkerImmediate($lat, $lng, $label, $icon = '')`
 - `addJsonMarker($json)`
 
 #### Geometrias
@@ -575,6 +661,7 @@ $map->show();
 - **Framework Adianti:** [adianti.com.br](https://adianti.com.br)
 - **OpenLayers:** [openlayers.org](https://openlayers.org)
 - **Documentação API:** [openlayers.org/en/latest/apidoc](https://openlayers.org/en/latest/apidoc/)
+- **Font Awesome:** [fontawesome.com](https://fontawesome.com)
 
 ---
 
@@ -603,5 +690,5 @@ Para dúvidas ou suporte:
 
 ---
 
-**Última atualização:** 14 de Agosto de 2026
+**Última atualização:** 21 de Agosto de 2026
 **Versão:** 1.5
