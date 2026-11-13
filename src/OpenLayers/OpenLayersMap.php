@@ -156,6 +156,10 @@ class OpenLayersMap extends TElement
         $highlightMinZoom = $this->highlightMinZoom;
         $highlightWfsUrl = $this->highlightWfsUrl;
 
+        /* Cores iniciais de highlight */
+        $highlightStrokeColor = $this->highlightStrokeColor;
+        $highlightFillColor = $this->highlightFillColor;
+
         /* Garante que o CSS seja carregado primeiro */
         TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol.css');
         TStyle::importFromFile('vendor/marcelonees/plugins/src/OpenLayers/ol-popup.css');
@@ -192,8 +196,8 @@ class OpenLayersMap extends TElement
                     showLayerControl: {$showLayerControl},
                     layerControlVisible: {$layerControlVisible},
                     restoreConfig: {$restoreConfigData},
-                    highlightStrokeColor: '{$this->highlightStrokeColor}',
-                    highlightFillColor: '{$this->highlightFillColor}',
+                    highlightStrokeColor: '{$highlightStrokeColor}',
+                    highlightFillColor: '{$highlightFillColor}',
                     highlight: {
                         enabled: {$highlightEnabled},
                         layerName: '{$highlightLayerName}',
@@ -846,6 +850,8 @@ class OpenLayersMap extends TElement
 
     /**
      * Highlight and fly to a geometry
+     * Cada feature recebe a cor vigente no momento da chamada (via _strokeColor/_fillColor),
+     * permitindo múltiplos highlights com cores diferentes no mesmo mapa.
      */
     public function HighlightAndFlyToGeom($geom, $z = 15)
     {
@@ -960,25 +966,20 @@ class OpenLayersMap extends TElement
                             format: new ol.format.GeoJSON()
                         });
                         
-                        var style = new ol.style.Style({
-                            stroke: new ol.style.Stroke({
-                                color: highlightStrokeColor,
-                                width: 3,
-                            }),
-                            fill: new ol.style.Fill({
-                                color: highlightFillColor,
-                            }),
-                            image: new ol.style.Circle({
-                                radius: 8,
-                                fill: new ol.style.Fill({
-                                    color: highlightStrokeColor,
-                                }),
-                                stroke: new ol.style.Stroke({
-                                    color: '#ffffff',
-                                    width: 2,
-                                }),
-                            }),
-                        });
+                        var style = function(feature) {
+                            var isCustom = feature.get('custom');
+                            if (isCustom) {
+                                var fStroke = feature.get('_strokeColor') || 'rgba(149,31,212,1)';
+                                var fFill   = feature.get('_fillColor')   || 'rgba(149,31,212,0.20)';
+                                return new ol.style.Style({
+                                    stroke: new ol.style.Stroke({ color: fStroke, width: 3 }),
+                                    fill: new ol.style.Fill({ color: fFill })
+                                });
+                            }
+                            return new ol.style.Style({
+                                stroke: new ol.style.Stroke({ width: 0.1 })
+                            });
+                        };
                         
                         highlightLayer = new ol.layer.Vector({
                             source: source,
@@ -988,7 +989,7 @@ class OpenLayersMap extends TElement
                         });
                         
                         map.addLayer(highlightLayer);
-                        console.log('✅ Camada de highlight criada com estilo personalizado');
+                        console.log('✅ Camada de highlight criada com estilo por feature');
                     }
                     
                     return highlightLayer;
@@ -1057,12 +1058,15 @@ class OpenLayersMap extends TElement
                         
                         console.log('📐 Features encontradas:', features.length);
                         
+                        /* ⭐ CHAVE: cada feature guarda sua própria cor */
                         features.forEach(function(f) { 
-                            f.set('custom', true); 
+                            f.set('custom', true);
+                            f.set('_strokeColor', highlightStrokeColor);
+                            f.set('_fillColor', highlightFillColor);
                         });
                         
                         highlightLayer.getSource().addFeatures(features);
-                        console.log('✅ Geometria destacada (' + features.length + ' features)');
+                        console.log('✅ Geometria destacada com cor (' + features.length + ' features) - stroke: ' + highlightStrokeColor);
                         
                         var extent = ol.extent.createEmpty();
                         features.forEach(function(feature) {
@@ -1109,13 +1113,17 @@ class OpenLayersMap extends TElement
 
     /**
      * Highlight a geometry
+     * Usa a cor vigente no momento da chamada (por feature).
      */
     public function HighlightGeom($geom, $z = 10)
     {
+        $stroke = $this->highlightStrokeColor;
+        $fill   = $this->highlightFillColor;
+
         $this->javascript .= "
             try {
                 if (typeof HighlightGeom === 'function') {
-                    HighlightGeom(" . json_encode($geom) . ");
+                    HighlightGeom(" . json_encode($geom) . ", '{$stroke}', '{$fill}');
                 } else {
                     var map = GeoMapApp.getLastMap ? GeoMapApp.getLastMap() : (GeoMapApp.getMap ? GeoMapApp.getMap() : null);
                     if (map) {
@@ -1126,7 +1134,11 @@ class OpenLayersMap extends TElement
                             var features = new ol.format.GeoJSON().readFeatures(" . json_encode($geom) . ", {
                                 featureProjection: 'EPSG:3857'
                             });
-                            features.forEach(function(f) { f.set('custom', true); });
+                            features.forEach(function(f) { 
+                                f.set('custom', true);
+                                f.set('_strokeColor', '{$stroke}');
+                                f.set('_fillColor', '{$fill}');
+                            });
                             highlightLayer.getSource().clear();
                             highlightLayer.getSource().addFeatures(features);
                         }
@@ -1196,7 +1208,10 @@ class OpenLayersMap extends TElement
     }
 
     /**
-     * configStroke a Geom on the Map
+     * Define as cores globais usadas como fallback para features sem cor própria.
+     * NÃO afeta features já destacadas (cada uma mantém sua cor definida via _strokeColor/_fillColor).
+     * Para re-pintar features existentes, use setFeatureStroke().
+     *
      * @param $strokeColor (default: 'rgba(149,31,212,1)')
      * @param $fillColor   (default: 'rgba(149,31,212,0.20)')
      */
@@ -1208,18 +1223,39 @@ class OpenLayersMap extends TElement
 
             $this->javascript .= "
                 if (typeof configStroke === 'function') {
-                    configStroke('$strokeColor', '$fillColor');
+                    configStroke('{$strokeColor}', '{$fillColor}');
                 } else if (GeoMapApp && GeoMapApp.configStroke) {
-                    GeoMapApp.configStroke('$strokeColor', '$fillColor');
+                    GeoMapApp.configStroke('{$strokeColor}', '{$fillColor}');
                 }
             ";
-            TScript::create($this->javascript);
         } catch (Exception $e) {
             new TMessage('error', $e->getMessage());
         }
         return $this;
     }
 
+    /**
+     * Força re-pintura de TODAS as features atuais da camada de highlight.
+     * Diferente de configStroke(), sobrescreve as cores das features existentes.
+     */
+    public function setFeatureStroke($strokeColor = 'rgba(149,31,212,1)', $fillColor = 'rgba(149,31,212,0.20)')
+    {
+        try {
+            $this->highlightStrokeColor = $strokeColor;
+            $this->highlightFillColor = $fillColor;
+
+            $this->javascript .= "
+                if (typeof setFeatureStroke === 'function') {
+                    setFeatureStroke('{$strokeColor}', '{$fillColor}');
+                } else if (GeoMapApp && GeoMapApp.setFeatureStroke) {
+                    GeoMapApp.setFeatureStroke('{$strokeColor}', '{$fillColor}');
+                }
+            ";
+        } catch (Exception $e) {
+            new TMessage('error', $e->getMessage());
+        }
+        return $this;
+    }
 
     /**
      * Set the popup class name
